@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://atlasmac.web.app/">Website</a> ·
-  <a href="#build--run">Install</a> ·
+  <a href="#install">Install</a> ·
   <a href="#claude-check-ins-the-part-after-tracking">Claude check-ins</a> ·
   <a href="#privacy--data">Privacy</a>
 </p>
@@ -43,6 +43,21 @@ next block. Calendar changes go through an explicit authorization policy.
 
 - Swift 6 / SwiftUI, macOS 14+, native on Apple Silicon. No third-party dependencies (system SQLite, URLSession, EventKit).
 - 56 deterministic XCTest cases (plus one opt-in live check) cover the 27 acceptance scenarios and more: `swift test`.
+
+## Install
+
+**[Download ATLAS for Mac](https://github.com/ZahinTapadar/atlas/releases/latest/download/ATLAS.dmg)** (free, about 9 MB, macOS 14+, Apple Silicon and Intel), or with Homebrew:
+
+```bash
+brew install --cask zahintapadar/tap/atlas
+```
+
+ATLAS isn't notarized by Apple yet, so macOS blocks the first launch: open **System Settings → Privacy & Security**,
+scroll down and click **Open Anyway** next to "ATLAS was blocked". You only do this once. For scheduled check-ins,
+open **Settings → Claude → Connect** (needs Claude Code signed in with a Claude subscription).
+
+Releases are built from this repository by [`.github/workflows/release.yml`](.github/workflows/release.yml) when a
+`v*` tag is pushed (`scripts/package-release.sh` makes the universal disk image).
 
 ## Build & run
 

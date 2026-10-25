@@ -33,6 +33,9 @@
   "screenshot": "https://atlasmac.web.app/assets/screens/today-light.webp",
   "applicationCategory": "ProductivityApplication",
   "operatingSystem": "macOS 14 or later",
+  "softwareVersion": "1.0.0",
+  "downloadUrl": "https://github.com/ZahinTapadar/atlas/releases/latest/download/ATLAS.dmg",
+  "fileSize": "9MB",
   "license": "https://opensource.org/licenses/MIT",
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -160,6 +163,16 @@
   /* Install */
   .install { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
   .install pre { box-shadow: none; }
+  .install .cta { margin: 26px 0 30px; }
+  .steps { margin: 0; padding: 0 0 0 1.3em; display: grid; gap: 14px; color: var(--ink-2); font-size: 15.5px; line-height: 1.55; max-width: 60ch; }
+  .steps li::marker { color: var(--ink-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .steps strong { color: var(--ink); font-weight: 600; }
+  .install .alt { display: grid; gap: 12px; }
+  .install .alt pre { font-size: 13.5px; padding: 18px 22px; overflow-x: auto; }
+  .install .label { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .install .label:first-child { margin-top: 0; }
+  .install .note { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); line-height: 1.5; }
+  .install .note a { color: var(--ink-2); }
 
   footer { margin-top: 160px; border-top: 1px solid var(--line); padding: 30px 0 56px; font-size: 13.5px; color: var(--ink-3);
            display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -205,10 +218,10 @@
       <div>
         <p class="lede">ATLAS quietly records what you really do on your Mac and keeps it there. Every three hours, Claude reads it beside your plan, tells you plainly whether you're on track, and updates your to-dos and calendar.</p>
         <div class="cta">
-          <a class="btn primary" href="#install">Build for macOS</a>
+          <a class="btn primary" href="https://github.com/ZahinTapadar/atlas/releases/latest/download/ATLAS.dmg">Download for Mac</a>
           <a class="btn" href="https://github.com/ZahinTapadar/atlas">View source</a>
         </div>
-        <div class="meta">macOS 14+ · Apple Silicon native · Free and open source</div>
+        <div class="meta">Free and open source · macOS 14+ · Apple Silicon and Intel · <a href="#install">Install help</a></div>
       </div>
     </div>
 
@@ -315,13 +328,25 @@ atlasctl summary --from -3h --json</pre>
   <section id="install">
     <div class="install">
       <div>
-        <h2>Build it in a minute.</h2>
-        <p class="sub">Requires macOS 14 or later and Xcode 16 or later. The script builds, signs with your Apple Development certificate when you have one, installs to ~/Applications, and registers the MCP server. A first-run screen asks for each permission.</p>
+        <h2>Install in a minute.</h2>
+        <p class="sub">Free, about 9 MB, for macOS 14 or later on Apple Silicon or Intel.</p>
+        <div class="cta"><a class="btn primary" href="https://github.com/ZahinTapadar/atlas/releases/latest/download/ATLAS.dmg">Download ATLAS for Mac</a></div>
+        <ol class="steps">
+          <li><strong>Open the disk image</strong> and drag ATLAS into Applications.</li>
+          <li><strong>Approve it once.</strong> ATLAS isn't notarized by Apple yet, so the first launch is blocked. Open System Settings → Privacy &amp; Security, scroll down, and click <em>Open Anyway</em> next to “ATLAS was blocked”.</li>
+          <li><strong>Grant access</strong> on the setup screen: Accessibility for window titles, Chrome for the current tab, Calendar for your events.</li>
+          <li><strong>Connect Claude</strong> for check-ins: ATLAS → Settings → Claude → Connect. Needs Claude Code signed in with a Claude subscription. Tracking, Timeline and Reports work without it.</li>
+        </ol>
       </div>
-      <pre>git clone https://github.com/ZahinTapadar/atlas.git
+      <div class="alt">
+        <p class="label">With Homebrew</p>
+        <pre>brew install --cask zahintapadar/tap/atlas</pre>
+        <p class="label">From source (Xcode 16 or later)</p>
+        <pre>git clone https://github.com/ZahinTapadar/atlas.git
 cd atlas
-./scripts/build-app.sh
-open ~/Applications/ATLAS.app</pre>
+./scripts/build-app.sh</pre>
+        <p class="note">Every release is built from this repository by <a href="https://github.com/ZahinTapadar/atlas/actions/workflows/release.yml">a public workflow</a>. <a href="https://github.com/ZahinTapadar/atlas/releases">All releases</a></p>
+      </div>
     </div>
   </section>
 

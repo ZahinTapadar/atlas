@@ -22,5 +22,7 @@ DMG="dist/ATLAS-$VERSION.dmg"
 rm -f "$DMG"
 hdiutil create -volname "ATLAS $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$DMG" >/dev/null
 shasum -a 256 "$DMG" | awk '{print $1}' > "$DMG.sha256"
+# A fixed name too, so releases/latest/download/ATLAS.dmg always points at the newest version.
+cp "$DMG" dist/ATLAS.dmg
 echo "$DMG  $(du -h "$DMG" | cut -f1)  sha256 $(cat "$DMG.sha256")"
 lipo -archs build/ATLAS.app/Contents/MacOS/ATLAS

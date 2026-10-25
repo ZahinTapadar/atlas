@@ -39,6 +39,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.v.outputs.version }}"
-          gh release create "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" \
+          gh release create "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" dist/ATLAS.dmg \
             --title "ATLAS $V" --notes-file .github/release-notes.md --latest || \
-          gh release upload "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" --clobber
+          gh release upload "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" dist/ATLAS.dmg --clobber
