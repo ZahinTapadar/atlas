@@ -132,7 +132,10 @@ case "email-setup":
         \(to.hasSuffix("gmail.com") || to.hasSuffix("googlemail.com")
             ? "Create one at https://myaccount.google.com/apppasswords (needs 2-Step Verification), name it ATLAS."
             : "Create one at https://account.apple.com → Sign-In and Security → App-Specific Passwords.")
-        Paste it below. It goes straight into your login Keychain as "ATLAS SMTP"; nothing is printed or saved elsewhere.
+        It goes straight into your login Keychain as "ATLAS SMTP"; nothing is printed or saved elsewhere.
+
+        Paste the app password and press Return, then paste it again when asked to retype it.
+        Nothing appears while you paste; that's expected.
 
         """)
         let p = Process()
