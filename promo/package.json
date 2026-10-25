@@ -4,8 +4,8 @@
   "description": "ATLAS product film, built with Remotion",
   "scripts": {
     "studio": "remotion studio",
-    "render": "remotion render Promo ../docs/assets/atlas-promo.mp4 --codec h264 --crf 18",
-    "poster": "remotion still Promo ../docs/assets/atlas-promo-poster.jpg --frame 360 --image-format jpeg --jpeg-quality 88"
+    "render": "remotion render Promo out/atlas-promo-silent.mp4 --codec h264 --crf 18",
+    "poster": "remotion still Promo out/poster.jpg --frame 360 --image-format jpeg --jpeg-quality 88"
   },
   "dependencies": {
     "@remotion/cli": "4.0.538",
