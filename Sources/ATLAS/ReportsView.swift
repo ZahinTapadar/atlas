@@ -467,9 +467,16 @@ private struct RhythmMap: View {
 
 /// Every scheduled check-in slot in the period, coloured by its verdict.
 private struct CheckinRecord: View {
+    @Environment(AppModel.self) private var model
     var days: [Date]
     var checkins: [AtlasStore.Checkin]
     @State private var hovered: AtlasStore.Checkin.ID?
+
+    /// Rows: the scheduled hours, plus any hour a recorded check-in fell in.
+    private var slotHours: [Int] {
+        let chosen = model.settings.checkinPlan.hours
+        return chosen.isEmpty ? CheckinPlan().hours : chosen.sorted()
+    }
 
     var body: some View {
         let cal = Calendar.current
@@ -489,7 +496,7 @@ private struct CheckinRecord: View {
                 }
 
                 if inRange.isEmpty {
-                    Text("No check-ins in this period. The scheduled task runs at 9, 12, 15, 18 and 21.")
+                    Text("No check-ins in this period. Choose when they happen in Settings → Check-ins.")
                         .font(.system(size: 13)).foregroundStyle(Theme.inkSecondary).fixedSize(horizontal: false, vertical: true)
                 } else {
                     // Proportion of verdicts.
@@ -509,7 +516,7 @@ private struct CheckinRecord: View {
                     let spacing: CGFloat = days.count > 7 ? 3 : 6
                     HStack(alignment: .top, spacing: spacing) {
                         VStack(alignment: .trailing, spacing: spacing) {
-                            ForEach(CheckinSchedule.hours, id: \.self) { h in
+                            ForEach(slotHours, id: \.self) { h in
                                 Text("\(h)").font(.system(size: 10, weight: .medium).monospacedDigit()).foregroundStyle(Theme.inkTertiary)
                                     .frame(height: size)
                             }
@@ -517,7 +524,7 @@ private struct CheckinRecord: View {
                         .frame(width: 18)
                         ForEach(days, id: \.self) { day in
                             VStack(spacing: spacing) {
-                                ForEach(CheckinSchedule.hours, id: \.self) { h in
+                                ForEach(slotHours, id: \.self) { h in
                                     let c = inRange.first { cal.isDate($0.ts, inSameDayAs: day) && nearestSlot($0.ts) == h }
                                     let v = Verdict(c?.verdict)
                                     RoundedRectangle(cornerRadius: size > 12 ? 7 : 2.5, style: .continuous)
@@ -563,7 +570,7 @@ private struct CheckinRecord: View {
     private func nearestSlot(_ d: Date) -> Int {
         let c = Calendar.current.dateComponents([.hour, .minute], from: d)
         let t = Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60
-        return CheckinSchedule.hours.min { abs(Double($0) - t) < abs(Double($1) - t) } ?? 9
+        return slotHours.min { abs(Double($0) - t) < abs(Double($1) - t) } ?? 9
     }
 }
 

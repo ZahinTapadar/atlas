@@ -67,6 +67,10 @@ On first launch a **setup checklist** walks through everything, each step with i
 
 Today shows a reminder until the essential steps are done; the checklist reopens from **Settings → Permissions & setup…**.
 
+**When check-ins happen is set in ATLAS** (Settings → Check-ins): pick the days and hours (6 AM–11 PM), pause
+for a day or a week, skip just the next one, or run a full check-in now. The Claude task wakes every hour
+and first asks ATLAS (`should_check_in`); hours you didn't choose stop there after one quick call.
+
 **Updates install themselves.** Release builds check GitHub on launch and every few hours and offer new
 versions in the sidebar. An update is installed only if its SHA-256 matches and its code signature comes
 from the pinned ATLAS Release certificate, which also keeps macOS permissions across versions. Homebrew

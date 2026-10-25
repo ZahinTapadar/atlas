@@ -64,6 +64,8 @@ final class AppModel {
     /// Whether Claude has the `atlas` MCP server pointing at this copy of ATLAS (nil until checked).
     var mcpConnected: Bool?
     var checkinTaskInstalled = false
+    var checkinRunning = false
+    var checkinRunMessage: String?
     var availableUpdate: Updater.Release?
     var updateStatus: String?
     var updateBusy = false
@@ -397,6 +399,30 @@ final class AppModel {
             }
         }
         await refresh()
+    }
+
+    // MARK: - Check-in schedule
+
+    var nextCheckin: Date? { settings.checkinPlan.next() }
+
+    func updatePlan(_ change: (inout CheckinPlan) -> Void) {
+        update { change(&$0.checkinPlan) }
+    }
+
+    /// Runs the real check-in now (Things, calendar, email), through Claude Code on the user's subscription.
+    func runCheckinNow() async {
+        guard !checkinRunning else { return }
+        checkinRunning = true
+        checkinRunMessage = "Checking in… this takes a minute or two."
+        defer { checkinRunning = false }
+        let cc = ClaudeCodeProvider(executablePath: settings.claudeExecutablePath)
+        do {
+            let run = try await cc.runAgent(prompt: CheckinTask.manualPrompt, allowedTools: CheckinTask.manualTools)
+            await refresh()
+            checkinRunMessage = run.ok ? "Check-in done." : "The check-in didn't finish: \(String(run.text.prefix(200)))"
+        } catch {
+            checkinRunMessage = error.localizedDescription
+        }
     }
 
     // MARK: - Updates

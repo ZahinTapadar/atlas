@@ -62,6 +62,12 @@ struct MCPServer {
             ],
         ],
         [
+            "name": "should_check_in",
+            "description": "Call this FIRST in every scheduled check-in. ATLAS holds the user's check-in schedule (hours, days, pauses, skips). If `proceed` is false, reply with `reason` in one line and stop without calling anything else. Pass manual = true only when the prompt says the check-in was requested from ATLAS.",
+            "inputSchema": ["type": "object", "properties": ["manual": ["type": "boolean"]], "additionalProperties": false],
+            "annotations": ["readOnlyHint": true],
+        ],
+        [
             "name": "get_things_today",
             "description": "The user's Things 3 Today list (including overdue items): id, title, status, notes, due date, project, the to-dos inside projects (children) and checklist items. `reason` is the user's own explanation, written in ATLAS, for not doing an item today: take it into account fairly and don't repeat advice it already answers.",
             "inputSchema": ["type": "object", "properties": [String: Any](), "additionalProperties": false],
@@ -166,6 +172,14 @@ struct MCPServer {
             let store = try AtlasStore(path: AtlasStore.defaultPath)
             try await store.saveCheckin(.init(source: "scheduled-checkin", verdict: a["verdict"] as? String, body: feedback, todos: todos))
             return "Saved to ATLAS (\(todos.count) to-dos)."
+        case "should_check_in":
+            let store = try readStore()
+            let plan = (try? await store.loadSettings())?.checkinPlan ?? CheckinPlan()
+            let last = try await store.checkins(limit: 1).first?.ts
+            let d = plan.decide(lastCheckin: last, manual: a["manual"] as? Bool ?? false)
+            var out: [String: Any] = ["proceed": d.proceed, "reason": d.reason]
+            if let next = plan.next() { out["next_scheduled"] = ISO8601DateFormatter().string(from: next) }
+            return String(decoding: try JSONSerialization.data(withJSONObject: out, options: [.sortedKeys]), as: UTF8.self)
         case "get_things_today":
             return String(decoding: try JSONEncoder().encode(try await Integrations.thingsToday()), as: UTF8.self)
         case "update_things_todo":

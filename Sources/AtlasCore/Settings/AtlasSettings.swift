@@ -101,6 +101,8 @@ public struct AtlasSettings: Codable, Hashable, Sendable {
     public var onboardingCompleted = false
     /// Check GitHub for a newer release on launch and daily (release builds only).
     public var checkForUpdates = true
+    /// When scheduled check-ins happen (the Claude task asks ATLAS each hour).
+    public var checkinPlan = CheckinPlan()
     public var accessibilityPromptShown = false
     /// Subscription by default. The API backend is used only if the user selects it; never as a fallback.
     public var agentBackend: AgentBackend = .claudeSubscription

@@ -56,6 +56,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 /// Custom window shell: an inset sidebar panel beside a scrolling content column.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
     @State private var section: AppSection = DemoData.startSection ?? .today
 
     var body: some View {
@@ -80,6 +81,13 @@ struct RootView: View {
         }
         .sheet(isPresented: Binding(get: { model.showUpdate }, set: { model.showUpdate = $0 })) {
             UpdateSheet().environment(model)
+        }
+        .task {
+            // `--demo --settings` opens Settings on Check-ins (screenshots).
+            if DemoData.isEnabled && CommandLine.arguments.contains("--settings") {
+                try? await Task.sleep(for: .seconds(1))
+                openSettings()
+            }
         }
         .overlay(alignment: .bottom) {
             if let err = model.lastError ?? model.startupError {

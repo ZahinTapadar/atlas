@@ -119,6 +119,32 @@ public struct ClaudeCodeProvider: AnalysisProvider {
                                 cacheReadTokens: usage?["cache_read_input_tokens"] as? Int)
     }
 
+    // MARK: - Agent runs
+
+    public struct AgentRun: Sendable {
+        public var ok: Bool
+        public var text: String
+    }
+
+    /// Runs one non-interactive Claude Code session with only `allowedTools` permitted (used for a check-in
+    /// requested from ATLAS). Same billing guard as analyses: subscription sign-in only, API keys scrubbed.
+    public func runAgent(prompt: String, allowedTools: [String], timeout: TimeInterval = 900) async throws -> AgentRun {
+        guard let exe = Self.locateExecutable(override: executableOverride) else {
+            throw ProviderError.notConfigured("Claude Code CLI not found. Install it and run `claude auth login`.")
+        }
+        guard let auth = await authStatus(), auth.isSubscription else {
+            throw ProviderError.notConfigured("Claude Code isn't signed in with a Claude subscription. Run `claude auth login`.")
+        }
+        let args = ["-p", "--output-format", "json", "--allowedTools", allowedTools.joined(separator: " "),
+                    "--no-session-persistence"]
+        let out = try await Self.run(exe, args, stdin: Data(prompt.utf8), timeout: timeout)
+        guard let obj = try? JSONSerialization.jsonObject(with: out.stdout) as? [String: Any] else {
+            return AgentRun(ok: false, text: AtlasLog.redact(String(decoding: out.stderr.suffix(300), as: UTF8.self)))
+        }
+        let ok = obj["is_error"] as? Bool != true && obj["subtype"] as? String == "success"
+        return AgentRun(ok: ok, text: obj["result"] as? String ?? "")
+    }
+
     // MARK: - Process plumbing
 
     struct ProcessOutput: Sendable {

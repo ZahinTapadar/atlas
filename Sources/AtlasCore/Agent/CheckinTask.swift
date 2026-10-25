@@ -17,10 +17,49 @@ public enum CheckinTask {
         }
     }
 
+    /// The installed task's own instructions (without its front matter), if there is one.
+    public static func installedPrompt(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String? {
+        let dir = home.appendingPathComponent(".claude/scheduled-tasks")
+        guard let tasks = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return nil }
+        for t in tasks.sorted() {
+            guard let text = try? String(contentsOf: dir.appendingPathComponent(t).appendingPathComponent("SKILL.md"), encoding: .utf8),
+                  text.contains("record_checkin") else { continue }
+            if text.hasPrefix("---"), let end = text.range(of: "\n---", range: text.index(text.startIndex, offsetBy: 3)..<text.endIndex) {
+                return String(text[end.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return text
+        }
+        return nil
+    }
+
+    /// The prompt for a check-in started from ATLAS: the user's own task instructions when installed.
+    public static var manualPrompt: String {
+        "ATLAS asked for this check-in now: call `should_check_in` with manual = true first.\n\n" + (installedPrompt() ?? prompt)
+    }
+
+    /// Tools a check-in started from ATLAS may use: ATLAS itself, Google Calendar, and reading routines.
+    public static let manualTools = ["mcp__atlas", "mcp__claude_ai_Google_Calendar", "RemoteTrigger", "ToolSearch"]
+
+    /// The step every scheduled run starts with: ATLAS decides whether this hour gets a check-in.
+    public static let gateStep = """
+    ## 0. Ask ATLAS first
+
+    This task wakes up every hour. Before anything else, call `atlas` → `should_check_in`. If `proceed` is false, reply with its `reason` in one line and stop: call no other tool and send nothing. ATLAS holds my check-in times, days, pauses and skips.
+    """
+
+    /// For a task created before ATLAS held the schedule: switch it to hourly and add the ATLAS step.
+    public static var upgradeRequest: String {
+        """
+        Please update my scheduled task "\(name)": change its schedule to the cron `\(CheckinPlan.cron)` (every hour from 6:00 to 23:00 my local time), and add this as the very first step of its prompt, keeping everything else word for word:
+
+        \(gateStep)
+        """
+    }
+
     /// What the user pastes into Claude.
     public static var setupRequest: String {
         """
-        Please create a scheduled task named "\(name)" that runs every day at 9:00, 12:00, 15:00, 18:00 and 21:00 my local time, with the instructions below as its prompt, word for word. Then run it once now so I can see a first check-in.
+        Please create a scheduled task named "\(name)" with the cron schedule `\(CheckinPlan.cron)` (every hour from 6:00 to 23:00 my local time), with the instructions below as its prompt, word for word. ATLAS decides which of those hours actually get a check-in. Then run it once now so I can see a first check-in.
 
         ---
 
@@ -30,6 +69,8 @@ public enum CheckinTask {
 
     public static let prompt = """
     You are my time-use coach. Every few hours you compare what I ACTUALLY did on my Mac (tracked by ATLAS) with what I MEANT to do today, keep my to-dos and calendar honest when those are connected, and tell me straight whether I'm on track. Work through the steps in order.
+
+    \(gateStep)
 
     ## 1. Gather
 

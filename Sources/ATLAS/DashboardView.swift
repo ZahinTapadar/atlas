@@ -12,12 +12,12 @@ struct DashboardView: View {
                 PageHeader(title: "Today", subtitle: Fmt.longDay.string(from: Date())) {
                     HStack(spacing: 10) {
                         NowCapsule()
-                        Button { model.runManualAnalysis() } label: {
-                            Label(model.agentBusy ? "Analyzing…" : "Check in now", systemImage: "sparkles")
+                        Button { Task { await model.runCheckinNow() } } label: {
+                            Label(model.checkinRunning ? "Checking in…" : "Check in now", systemImage: "sparkles")
                         }
                         .buttonStyle(InkButtonStyle())
-                        .disabled(model.agentBusy)
-                        .help("Ask Claude for a check-in on today so far")
+                        .disabled(model.checkinRunning || model.claudeCodePath == nil)
+                        .help("Run a full check-in now: verdict, Things, calendar and email")
                     }
                 }
 
@@ -113,6 +113,7 @@ struct NowCapsule: View {
 
 /// The verdict: the one tinted field on the screen.
 struct VerdictPanel: View {
+    @Environment(AppModel.self) private var model
     var checkin: AtlasStore.Checkin?
     var openAll: () -> Void
 
@@ -172,7 +173,7 @@ struct VerdictPanel: View {
                         Text("check-in").font(.system(size: 12)).foregroundStyle(Theme.inkTertiary)
                     }
                 }
-                if let next = CheckinSchedule.next() {
+                if let next = model.nextCheckin {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(Fmt.time.string(from: next)).font(.system(size: 15, weight: .medium).monospacedDigit())
                             .foregroundStyle(Theme.inkSecondary)

@@ -9,6 +9,8 @@ import UniformTypeIdentifiers
 /// then the week (day by day, when you focus, check-in record, top apps and sites). Charts are animated GIFs.
 enum ReportEmail {
     typealias Inline = (cid: String, data: Data)
+    /// Rows of the check-in grid: the user's scheduled hours.
+    nonisolated(unsafe) static var slotHours = CheckinPlan().hours
 
     static let on = "#3dd68c", mixed = "#f5b342", off = "#ff6b6b"
     static var ink: String { RichEmail.ink }
@@ -208,7 +210,7 @@ enum ReportEmail {
         h += "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"4\" style=\"margin-top:10px;table-layout:fixed;\"><tr><td width=\"26\"></td>"
         for d in days { h += "<td align=\"center\" style=\"font-size:11px;color:\(ink3);\">\(String(weekday(d).prefix(2)))</td>" }
         h += "</tr>"
-        for hour in [9, 12, 15, 18, 21] {
+        for hour in slotHours {
             h += "<tr><td style=\"font-size:11px;color:\(ink3);\">\(hour)</td>"
             for d in days {
                 let c = inRange.first { cal.isDate($0.ts, inSameDayAs: d) && nearestSlot($0.ts) == hour }
@@ -276,7 +278,7 @@ enum ReportEmail {
     private static func nearestSlot(_ d: Date) -> Int {
         let c = Calendar.current.dateComponents([.hour, .minute], from: d)
         let t = Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60
-        return [9, 12, 15, 18, 21].min { abs(Double($0) - t) < abs(Double($1) - t) } ?? 9
+        return slotHours.min { abs(Double($0) - t) < abs(Double($1) - t) } ?? 9
     }
 
     static func weekday(_ d: Date) -> String { let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("EEE"); return f.string(from: d) }

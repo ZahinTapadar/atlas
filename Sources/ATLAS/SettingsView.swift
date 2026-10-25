@@ -4,15 +4,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    @State private var tab = CommandLine.arguments.contains("--settings") ? "checkins" : "general"
+
     var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
-            BrowserSettings().tabItem { Label("Browser", systemImage: "globe") }
-            ClaudeSettings().tabItem { Label("Claude", systemImage: "sparkles") }
-            CalendarSettings().tabItem { Label("Calendar", systemImage: "calendar") }
-            RulesSettings().tabItem { Label("Rules", systemImage: "list.bullet.indent") }
-            DiagnosticsSettings().tabItem { Label("Diagnostics", systemImage: "stethoscope") }
+        TabView(selection: $tab) {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }.tag("general")
+            PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }.tag("privacy")
+            BrowserSettings().tabItem { Label("Browser", systemImage: "globe") }.tag("browser")
+            CheckinSettings().tabItem { Label("Check-ins", systemImage: "clock.badge.checkmark") }.tag("checkins")
+            ClaudeSettings().tabItem { Label("Claude", systemImage: "sparkles") }.tag("claude")
+            CalendarSettings().tabItem { Label("Calendar", systemImage: "calendar") }.tag("calendar")
+            RulesSettings().tabItem { Label("Rules", systemImage: "list.bullet.indent") }.tag("rules")
+            DiagnosticsSettings().tabItem { Label("Diagnostics", systemImage: "stethoscope") }.tag("diagnostics")
         }
         .scenePadding()
     }

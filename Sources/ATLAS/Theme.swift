@@ -80,21 +80,6 @@ enum Verdict: String {
     }
 }
 
-/// Times the scheduled check-in task runs (local).
-enum CheckinSchedule {
-    static let hours = [9, 12, 15, 18, 21]
-
-    static func next(after date: Date = Date(), calendar: Calendar = .current) -> Date? {
-        let start = calendar.startOfDay(for: date)
-        for day in 0...1 {
-            for h in hours {
-                if let d = calendar.date(byAdding: DateComponents(day: day, hour: h), to: start), d > date { return d }
-            }
-        }
-        return nil
-    }
-}
-
 // MARK: - Shared surfaces
 
 /// The one panel shape: continuous corners, quiet fill, no stroke in light mode.

@@ -28,8 +28,13 @@ struct CheckinsView: View {
     }
 
     private var subtitle: String {
-        if let next = CheckinSchedule.next() { return "Next scheduled check-in at \(Fmt.time.string(from: next))" }
-        return "Scheduled by the ATLAS Check-in task in the Claude app"
+        let plan = model.settings.checkinPlan
+        if let p = plan.pausedUntil, p > Date() { return "Paused until \(Fmt.dayTime.string(from: p))" }
+        if let next = model.nextCheckin {
+            let day = Calendar.current.isDateInToday(next) ? "" : (Calendar.current.isDateInTomorrow(next) ? "tomorrow " : Fmt.longDay.string(from: next) + " ")
+            return "Next check-in \(day)at \(Fmt.time.string(from: next)) · change in Settings → Check-ins"
+        }
+        return "No check-ins scheduled · choose times in Settings → Check-ins"
     }
 
     private var rail: some View {
@@ -38,7 +43,7 @@ struct CheckinsView: View {
                 Panel(padding: 28) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("No check-ins yet").font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.ink)
-                        Text("The ATLAS Check-in task in the Claude app runs at 9, 12, 15, 18 and 21. It reads this tracker through the atlas MCP server, compares it with your calendar and daily briefing, and saves its verdict here.")
+                        Text("Check-ins come from the ATLAS Check-in task in the Claude app, at the times you choose in Settings → Check-ins. Each one reads this tracker, compares it with your plan, and saves its verdict here.")
                             .font(.system(size: 13.5)).foregroundStyle(Theme.inkSecondary).frame(maxWidth: 620, alignment: .leading)
                     }
                 }

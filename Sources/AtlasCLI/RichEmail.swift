@@ -412,6 +412,8 @@ enum CheckinMail {
         let today = await Report.build(period: .today, store: store, now: now)
         let week = await Report.build(period: .week, store: store, now: now)
         let checkins = (try? await store.checkins(limit: 80)) ?? []
+        let hours = (try? await store.loadSettings())?.checkinPlan.hours ?? []
+        if !hours.isEmpty { ReportEmail.slotHours = hours.sorted() }
         return ReportEmail.sections(today: today, week: week, checkins: checkins, now: now)
     }
 }
