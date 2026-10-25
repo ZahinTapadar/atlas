@@ -4,10 +4,17 @@ public struct AppInfo: Sendable, Hashable {
     public var bundleID: String?
     public var name: String?
     public var pid: Int32?
-    public init(bundleID: String?, name: String?, pid: Int32? = nil) {
+    /// The app's own `LSApplicationCategoryType` (e.g. "public.app-category.games"), if it declares one.
+    public var declaredCategory: String?
+    /// Path of the app bundle; reveals Steam/launcher installs ("/steamapps/common/").
+    public var bundlePath: String?
+
+    public init(bundleID: String?, name: String?, pid: Int32? = nil, declaredCategory: String? = nil, bundlePath: String? = nil) {
         self.bundleID = bundleID
         self.name = name
         self.pid = pid
+        self.declaredCategory = declaredCategory
+        self.bundlePath = bundlePath
     }
 }
 
@@ -331,7 +338,8 @@ public struct ActivityStateEngine: Sendable {
 
     private func input(for c: Context, state: ActivityState) -> ClassificationInput {
         ClassificationInput(bundleID: c.app?.bundleID, appName: c.app?.name, windowTitle: c.windowTitle,
-                            domain: c.tab?.domain, pageTitle: c.tab?.title, state: state)
+                            domain: c.tab?.domain, pageTitle: c.tab?.title, state: state,
+                            declaredCategory: c.app?.declaredCategory, bundlePath: c.app?.bundlePath)
     }
 
     private func emit(_ c: Context, end: Date) -> ActivityEvent? {

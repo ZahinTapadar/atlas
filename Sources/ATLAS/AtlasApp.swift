@@ -5,6 +5,11 @@ import SwiftUI
 struct AtlasApp: App {
     @State private var model = AppModel()
 
+    init() {
+        // `open -n ATLAS.app --args --diagnose` records what macOS reports for this exact app identity, then exits.
+        if CommandLine.arguments.contains("--diagnose") { PermissionDiagnostics.writeAndExit() }
+    }
+
     var body: some Scene {
         WindowGroup("ATLAS", id: "main") {
             RootView()
@@ -33,13 +38,12 @@ struct AtlasApp: App {
 }
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case dashboard = "Dashboard", timeline = "Timeline", plan = "Plan", agent = "Agent", reports = "Reports"
+    case dashboard = "Dashboard", timeline = "Timeline", agent = "Agent", reports = "Reports"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .dashboard: "gauge.with.dots.needle.33percent"
         case .timeline: "list.bullet.rectangle"
-        case .plan: "checklist"
         case .agent: "sparkles"
         case .reports: "chart.bar.xaxis"
         }
@@ -64,7 +68,6 @@ struct RootView: View {
                 switch section {
                 case .dashboard: DashboardView()
                 case .timeline: TimelineView()
-                case .plan: PlanView()
                 case .agent: AgentView()
                 case .reports: ReportsView()
                 }
@@ -82,6 +85,9 @@ struct RootView: View {
                     .help(model.settings.trackingEnabled ? "Pause tracking" : "Resume tracking")
                 }
             }
+        }
+        .sheet(isPresented: Binding(get: { model.showOnboarding }, set: { model.showOnboarding = $0 })) {
+            OnboardingView().environment(model)
         }
         .overlay(alignment: .bottom) {
             if let err = model.lastError ?? model.startupError {

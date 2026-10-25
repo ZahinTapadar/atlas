@@ -14,6 +14,8 @@ public final class EventKitConnector: CalendarConnector, @unchecked Sendable {
 
     public init() {}
 
+    public static var isNotDetermined: Bool { EKEventStore.authorizationStatus(for: .event) == .notDetermined }
+
     public func requestAccess() async -> Bool {
         let events = (try? await store.requestFullAccessToEvents()) ?? false
         _ = try? await store.requestFullAccessToReminders()

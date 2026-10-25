@@ -13,6 +13,12 @@ public enum NotificationService {
         return (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
     }
 
+    public static func isAuthorized() async -> Bool {
+        guard available else { return false }
+        let s = await UNUserNotificationCenter.current().notificationSettings()
+        return s.authorizationStatus == .authorized || s.authorizationStatus == .provisional
+    }
+
     public static func post(id: String, title: String, body: String) {
         guard available else { return }
         let c = UNMutableNotificationContent()

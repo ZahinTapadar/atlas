@@ -6,8 +6,13 @@ public actor AtlasStore {
     private let db: SQLiteConnection
     public nonisolated let path: String
 
-    public init(path: String) throws {
+    public init(path: String, readOnly: Bool = false) throws {
         self.path = path
+        if readOnly {
+            // External readers (atlas CLI / MCP) never migrate or write.
+            db = try SQLiteConnection(path: path, readOnly: true)
+            return
+        }
         if path != ":memory:" {
             try FileManager.default.createDirectory(at: URL(fileURLWithPath: path).deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
@@ -15,6 +20,8 @@ public actor AtlasStore {
         db = try SQLiteConnection(path: path)
         try Migrations.migrate(db)
     }
+
+    public static var defaultPath: String { defaultDirectory.appendingPathComponent("atlas.sqlite").path }
 
     public static func inMemory() throws -> AtlasStore { try AtlasStore(path: ":memory:") }
 
@@ -418,6 +425,33 @@ public actor AtlasStore {
         }
     }
 
+    // MARK: - Check-ins
+
+    public struct Checkin: Codable, Sendable, Hashable, Identifiable {
+        public var id: String
+        public var ts: Date
+        public var source: String
+        /// "on_track" | "mixed" | "off_track" | "insufficient_data"
+        public var verdict: String?
+        public var body: String
+
+        public init(id: String = UUID().uuidString, ts: Date = Date(), source: String, verdict: String?, body: String) {
+            self.id = id; self.ts = ts; self.source = source; self.verdict = verdict; self.body = body
+        }
+    }
+
+    public func saveCheckin(_ c: Checkin) throws {
+        try db.run("INSERT OR REPLACE INTO checkin (id, ts, source, verdict, body) VALUES (?,?,?,?,?)",
+                   c.id, c.ts, c.source, c.verdict, String(c.body.prefix(20_000)))
+    }
+
+    public func checkins(limit: Int = 30) throws -> [Checkin] {
+        try db.query("SELECT * FROM checkin ORDER BY ts DESC LIMIT ?", [limit]) { r in
+            Checkin(id: r.string("id")!, ts: r.date("ts")!, source: r.string("source") ?? "", verdict: r.string("verdict"),
+                    body: r.string("body") ?? "")
+        }
+    }
+
     // MARK: - Tracker heartbeat
 
     public func heartbeat(at: Date, clean: Bool = false) throws {
@@ -445,7 +479,7 @@ public actor AtlasStore {
     public func deleteAllData(includeConfiguration: Bool = false) throws {
         try db.transaction {
             for t in ["activity_event", "activity_session", "analysis_window", "plan_item", "agent_action",
-                      "daily_summary", "request_log", "tracker_state"] {
+                      "daily_summary", "request_log", "tracker_state", "checkin"] {
                 try db.run("DELETE FROM \(t)")
             }
             if includeConfiguration {

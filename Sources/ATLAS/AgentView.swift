@@ -15,11 +15,18 @@ struct AgentView: View {
         .navigationTitle("Agent")
         .sheet(item: $payload) { PayloadSheet(item: $0) }
         .sheet(item: $editingAction) { a in ActionEditor(action: a) { model.approve(a, edited: $0) } }
-        .onAppear { if selectedWindow == nil { selectedWindow = model.latestAnalyzed?.window.id ?? model.windows.first?.id } }
+        .onAppear {
+            if selectedWindow == nil {
+                selectedWindow = model.checkins.isEmpty ? (model.latestAnalyzed?.window.id ?? model.windows.first?.id) : "checkins"
+            }
+        }
     }
 
     private var windowList: some View {
         List(selection: $selectedWindow) {
+            if !model.checkins.isEmpty {
+                Text("Check-ins").tag("checkins").font(.headline)
+            }
             if !model.pendingActions.isEmpty {
                 Label("\(model.pendingActions.count) change(s) awaiting approval", systemImage: "hand.raised").foregroundStyle(.orange)
             }
@@ -39,7 +46,20 @@ struct AgentView: View {
     }
 
     @ViewBuilder private var detail: some View {
-        if let id = selectedWindow, let w = model.windows.first(where: { $0.id == id }) {
+        if selectedWindow == "checkins" || (selectedWindow == nil && !model.checkins.isEmpty) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Scheduled check-ins").font(.title2.weight(.semibold))
+                Text("Written by your scheduled Claude task after reading this tracker, your calendar and your daily briefing.")
+                    .foregroundStyle(.secondary)
+                ForEach(model.checkins) { c in
+                    Card(title: Fmt.dayTime.string(from: c.ts), systemImage: "bubble.left.and.text.bubble.right") {
+                        VerdictChip(verdict: c.verdict)
+                        Text((try? AttributedString(markdown: c.body, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(c.body))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+        } else if let id = selectedWindow, let w = model.windows.first(where: { $0.id == id }) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     VStack(alignment: .leading) {

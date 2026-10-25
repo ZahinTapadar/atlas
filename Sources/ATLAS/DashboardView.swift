@@ -30,7 +30,7 @@ struct DashboardView: View {
                     }
                     VStack(spacing: 14) {
                         nextWindowCard
-                        planCard
+                        checkinCard
                     }
                     .frame(width: 330)
                 }
@@ -78,25 +78,24 @@ struct DashboardView: View {
             Text("Window counts awake time only — sleep, lock and long absences don't advance it.")
                 .font(.caption).foregroundStyle(.secondary)
             let queued = model.windows.filter { [.ready, .failed, .awaitingReview].contains($0.status) }
-            if !queued.isEmpty {
+            if !queued.isEmpty && model.settings.automaticWindowAnalysis {
                 Label("\(queued.count) window(s) queued\(model.agentReady ? "" : " — \(model.agentSetupHint)")", systemImage: "tray.full")
                     .font(.caption).foregroundStyle(.orange)
             }
         }
     }
 
-    private var planCard: some View {
-        Card(title: "Plan", systemImage: "checklist") {
-            let open = model.planItems.filter { $0.status != .completed && $0.status != .dropped }
-            let done = model.planItems.filter { $0.status == .completed && Calendar.current.isDateInToday($0.plannedStart ?? .distantPast) }
-            HStack(spacing: 20) {
-                Metric(label: "Remaining", value: "\(open.count)", caption: Fmt.duration(TimeInterval(open.reduce(0) { $0 + $1.expectedMinutes } * 60)))
-                Metric(label: "Done today", value: "\(done.count)")
-                Metric(label: "Pending changes", value: "\(model.pendingActions.count)")
-            }
-            ForEach(open.prefix(4)) { p in
-                HStack { Text("P\(p.priority)").font(.caption.monospaced()).foregroundStyle(.secondary); Text(p.title).lineLimit(1) }
-                    .font(.callout)
+    private var checkinCard: some View {
+        Card(title: "Latest check-in", systemImage: "bubble.left.and.text.bubble.right") {
+            if let c = model.checkins.first {
+                HStack {
+                    VerdictChip(verdict: c.verdict)
+                    Text(Fmt.dayTime.string(from: c.ts)).font(.caption).foregroundStyle(.secondary)
+                }
+                Text(c.body).font(.callout).lineLimit(8).textSelection(.enabled)
+            } else {
+                Text("Scheduled Claude check-ins will appear here. They read this tracker through the atlas MCP server and compare it with your calendar and daily briefing.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
         }
     }
@@ -122,6 +121,9 @@ struct DashboardView: View {
 
     private var healthCard: some View {
         Card(title: "Tracking health", systemImage: "stethoscope") {
+            if model.health.contains(where: { $0.level == .degraded }) {
+                Button("Fix permissions…") { model.showOnboarding = true }.controlSize(.small)
+            }
             ForEach(model.health) { h in
                 HStack(alignment: .firstTextBaseline) {
                     StatusDot(level: h.level)

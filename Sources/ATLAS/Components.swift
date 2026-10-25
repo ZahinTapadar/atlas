@@ -28,7 +28,8 @@ extension ActivityCategory {
         case .personalOrganization: .green
         case .breakTime: Color(nsColor: .systemGray)
         case .idle: Color(nsColor: .quaternaryLabelColor)
-        case .unknown: Color(nsColor: .tertiaryLabelColor)
+        // Distinct from idle grey: "we saw activity but couldn't tell what it was".
+        case .unknown: Color(red: 0.85, green: 0.65, blue: 0.2)
         }
     }
     var icon: String {

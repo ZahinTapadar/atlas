@@ -34,7 +34,7 @@ public enum ActivityCategory: String, Codable, CaseIterable, Sendable, Identifia
         case .personalOrganization: "Personal organization"
         case .breakTime: "Break"
         case .idle: "Idle"
-        case .unknown: "Unknown / ambiguous"
+        case .unknown: "Unclassified"
         }
     }
 

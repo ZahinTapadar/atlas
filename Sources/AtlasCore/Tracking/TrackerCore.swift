@@ -125,6 +125,24 @@ public actor TrackerCore {
         return ready
     }
 
+    /// Re-run the classifier over stored, still-inferred events (after rule or classifier improvements).
+    /// User-confirmed classifications and excluded events are never touched.
+    @discardableResult
+    public func reclassify(from: Date, to: Date) async throws -> Int {
+        let classifier = engine.classifier
+        var changed: [ActivityEvent] = []
+        for var e in try await store.events(from: from, to: to)
+        where e.classification.origin == .inferred && e.privacy != .excluded && e.state.isEngaged {
+            let c = classifier.classify(ClassificationInput(event: e))
+            if c.category != e.classification.category || abs(c.confidence - e.classification.confidence) > 0.01 {
+                e.classification = c
+                changed.append(e)
+            }
+        }
+        try await store.upsertEvents(changed)
+        return changed.count
+    }
+
     /// Rebuild sessions for a range (called periodically and after manual edits).
     public func rebuildSessions(from: Date, to: Date) async throws {
         let events = try await store.events(from: from, to: to)

@@ -3,20 +3,27 @@ import ApplicationServices
 import AtlasCore
 import CoreGraphics
 
-public typealias ObservationSink = @MainActor (ActivitySignal, Date) -> Void
+public typealias SignalSink = @MainActor (ActivitySignal, Date) -> Void
 
 /// Foreground app, sleep/wake, display sleep, and lock/unlock via NSWorkspace and distributed
 /// notifications. Purely event-driven: no polling.
 @MainActor
 public final class WorkspaceMonitor {
     private var tokens: [NSObjectProtocol] = []
-    private let sink: ObservationSink
+    private let sink: SignalSink
 
-    public init(sink: @escaping ObservationSink) { self.sink = sink }
+    public init(sink: @escaping SignalSink) { self.sink = sink }
 
     public static func frontmostApp() -> AppInfo? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        return AppInfo(bundleID: app.bundleIdentifier, name: app.localizedName, pid: app.processIdentifier)
+        NSWorkspace.shared.frontmostApplication.map(info)
+    }
+
+    /// App identity plus its self-declared App Store category (read from its Info.plist; no permission needed).
+    nonisolated public static func info(_ app: NSRunningApplication) -> AppInfo {
+        let url = app.bundleURL
+        let declared = url.flatMap { Bundle(url: $0)?.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String }
+        return AppInfo(bundleID: app.bundleIdentifier, name: app.localizedName, pid: app.processIdentifier,
+                       declaredCategory: declared, bundlePath: url?.path)
     }
 
     public func start() {
@@ -30,7 +37,7 @@ public final class WorkspaceMonitor {
         }
         on(ws, NSWorkspace.didActivateApplicationNotification) { note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return nil }
-            return .appActivated(AppInfo(bundleID: app.bundleIdentifier, name: app.localizedName, pid: app.processIdentifier))
+            return .appActivated(WorkspaceMonitor.info(app))
         }
         on(ws, NSWorkspace.willSleepNotification) { _ in .systemWillSleep }
         on(ws, NSWorkspace.didWakeNotification) { _ in .systemDidWake }
@@ -57,12 +64,12 @@ public final class WorkspaceMonitor {
 /// active it sleeps until the threshold could next be crossed; while idle it checks every few seconds.
 @MainActor
 public final class IdleMonitor {
-    private let sink: ObservationSink
+    private let sink: SignalSink
     private var timer: Timer?
     private var isIdle = false
     public var threshold: TimeInterval
 
-    public init(threshold: TimeInterval, sink: @escaping ObservationSink) {
+    public init(threshold: TimeInterval, sink: @escaping SignalSink) {
         self.threshold = threshold
         self.sink = sink
     }
@@ -101,14 +108,14 @@ public final class IdleMonitor {
 /// keeps working on app identity alone and records that titles were unavailable.
 @MainActor
 public final class WindowTitleObserver {
-    private let sink: ObservationSink
+    private let sink: SignalSink
     private var observer: AXObserver?
     private var appElement: AXUIElement?
     private var observedPID: pid_t = 0
     public var enabled = true
     public var excludedBundleIDs: Set<String> = []
 
-    public init(sink: @escaping ObservationSink) { self.sink = sink }
+    public init(sink: @escaping SignalSink) { self.sink = sink }
 
     public static var isTrusted: Bool { AXIsProcessTrusted() }
 

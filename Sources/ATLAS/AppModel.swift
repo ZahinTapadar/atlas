@@ -26,7 +26,7 @@ final class AppModel {
     private var workspace: WorkspaceMonitor!
     private var idle: IdleMonitor!
     private var titles: WindowTitleObserver!
-    private var safari: SafariProbe!
+    private var browserProbe: BrowserScriptProbe!
     private var tickTimer: Timer?
     private var deadlineTimer: Timer?
     private var lastPurge = Date.distantPast
@@ -49,6 +49,10 @@ final class AppModel {
     var calendarStatus: ConnectorStatus = .notAuthorized("Not checked")
     var agentBusy = false
     var hasAPIKey = false
+    var checkins: [AtlasStore.Checkin] = []
+    var showOnboarding = false
+    var permissions = PermissionStatus()
+    private var permissionTimer: Timer?
     var claudeCodeAuth: ClaudeCodeProvider.AuthStatus?
     var claudeCodePath: String?
     var lastError: String?
@@ -92,7 +96,7 @@ final class AppModel {
         self.workspace = WorkspaceMonitor { [weak self] o, d in self?.observe(o, at: d) }
         self.idle = IdleMonitor(threshold: settings.idleThresholdSeconds) { [weak self] o, d in self?.observe(o, at: d) }
         self.titles = WindowTitleObserver { [weak self] o, d in self?.observe(o, at: d) }
-        self.safari = SafariProbe { [weak self] o, d in self?.observe(o, at: d) }
+        self.browserProbe = BrowserScriptProbe { [weak self] o, d in self?.observe(o, at: d) }
         Task { await self.boot() }
     }
 
@@ -119,7 +123,21 @@ final class AppModel {
         try? await coordinator.recoverAfterRestart()
         if settings.notificationsEnabled { _ = await NotificationService.requestAuthorization() }
         try? FileManager.default.createDirectory(at: BrowserInbox.defaultDirectory, withIntermediateDirectories: true)
+        registerBrowserHelper()
+        // Re-apply the classifier to recent history so improvements fix past "unclassified" time too.
+        _ = try? await tracker.reclassify(from: Date().addingTimeInterval(-14 * 86400), to: Date())
         if settings.trackingEnabled { await startTracking() }
+        await refreshPermissions()
+        if !settings.onboardingCompleted || !permissions.accessibility {
+            showOnboarding = true
+            // Ask up front, but only once ever: repeated requests queue duplicate system dialogs.
+            if !permissions.accessibility && !settings.accessibilityPromptShown {
+                WindowTitleObserver.requestTrust()
+                update { $0.accessibilityPromptShown = true }
+            }
+            if permissions.calendar == .notDetermined { _ = await eventKit.requestAccess() }
+        }
+        watchPermissions()
         await refresh()
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.shutdown() }
@@ -135,8 +153,8 @@ final class AppModel {
         idle.start()
         configureTitleObserver()
         titles.follow(app: front)
-        safari.enabled = settings.browserAutomationEnabled
-        safari.frontmostChanged(to: front?.bundleID)
+        browserProbe.enabled = settings.browserAutomationEnabled && !settings.privateMode
+        browserProbe.frontmostChanged(to: front?.bundleID)
         tickTimer?.invalidate()
         tickTimer = Timer.scheduledTimer(withTimeInterval: TrackerCore.flushInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.tick() }
@@ -144,11 +162,123 @@ final class AppModel {
         tickTimer?.tolerance = 5
     }
 
+    /// Registers the bundled native-messaging helper with installed Chromium browsers (fixed extension ID).
+    private func registerBrowserHelper() {
+        let host = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/atlas-nm-host").path
+        guard FileManager.default.isExecutableFile(atPath: host) else { return }
+        ChromeExtension.registerNativeHost(hostPath: host)
+    }
+
+    var bundledExtensionFolder: URL? {
+        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Extensions/chromium")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func refreshPermissions() async {
+        var p = PermissionStatus()
+        p.accessibility = AXIsProcessTrusted()
+        p.calendar = await eventKit.status() == .connected ? .granted : (calendarStatusNotDetermined() ? .notDetermined : .denied)
+        p.chromeInstalled = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") != nil
+        p.chromeRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").isEmpty
+        if p.chromeRunning {
+            let st = BrowserScriptProbe.permissionStatus(bundleID: "com.google.Chrome")
+            p.chromeAutomation = st == noErr ? .granted : st == -1744 ? .notDetermined : .denied
+        }
+        p.chromeExtension = BrowserInbox.lastActivity().map { Date().timeIntervalSince($0) < 6 * 3600 } ?? false
+        p.notifications = await NotificationService.isAuthorized()
+        let wasTrusted = permissions.accessibility
+        permissions = p
+        if p.accessibility && !wasTrusted {
+            // Accessibility was just granted: start reading window titles without a relaunch.
+            titles.follow(app: WorkspaceMonitor.frontmostApp())
+        }
+    }
+
+    private func calendarStatusNotDetermined() -> Bool { EventKitConnector.isNotDetermined }
+
+    /// Poll permission state only while something is missing (System Settings sends no notification).
+    private func watchPermissions() {
+        permissionTimer?.invalidate()
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                await self.refreshPermissions()
+                if self.permissions.accessibility && self.permissions.calendar != .notDetermined && !self.showOnboarding {
+                    self.permissionTimer?.invalidate()
+                }
+            }
+        }
+    }
+
+    /// When the user opened Accessibility settings; used to detect a stale entry that never takes effect.
+    var accessibilityRequestedAt: Date?
+
+    /// The toggle is on but the grant doesn't apply: the list entry belongs to an older (differently signed) build.
+    var accessibilityLooksStale: Bool {
+        guard !permissions.accessibility else { return false }
+        // Show the help whenever setup was seen before (the user likely already toggled it) or 15 s after asking.
+        if settings.onboardingCompleted { return true }
+        guard let t = accessibilityRequestedAt else { return false }
+        return Date().timeIntervalSince(t) > 15
+    }
+
+    func copyAccessibilityResetCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("tccutil reset Accessibility com.atlas.tracker", forType: .string)
+    }
+
+    func relaunch() {
+        let url = Bundle.main.bundleURL
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        shutdown()
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
+            // NSApp.terminate can be cancelled while a sheet is open, leaving two copies running; exit directly
+            // (shutdown() already flushed the tracker).
+            exit(0)
+        }
+    }
+
+    func requestAccessibility() {
+        accessibilityRequestedAt = Date()
+        // Go straight to the list; don't stack another system prompt on top of an existing one.
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        watchPermissions()
+    }
+
+    func requestChromeAccess() {
+        if !permissions.chromeRunning, let chrome = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome") {
+            NSWorkspace.shared.openApplication(at: chrome, configuration: NSWorkspace.OpenConfiguration())
+        }
+        Task.detached {
+            // Blocks until the user answers the macOS prompt, so keep it off the main thread.
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            _ = BrowserScriptProbe.requestPermission(bundleID: "com.google.Chrome")
+            await self.refreshPermissions()
+        }
+    }
+
+    func installChromeExtension() {
+        registerBrowserHelper()
+        if let folder = bundledExtensionFolder { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
+        if let chrome = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.google.Chrome"),
+           let url = URL(string: "chrome://extensions") {
+            NSWorkspace.shared.open([url], withApplicationAt: chrome, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
+
+    func requestNotifications() { Task { _ = await NotificationService.requestAuthorization(); await refreshPermissions() } }
+
+    func finishOnboarding() {
+        showOnboarding = false
+        update { $0.onboardingCompleted = true }
+    }
+
     func stopTracking() async {
         workspace.stop()
         idle.stop()
         titles.follow(app: nil)
-        safari.frontmostChanged(to: nil)
+        browserProbe.frontmostChanged(to: nil)
         tickTimer?.invalidate()
         deadlineTimer?.invalidate()
         await tracker.stop(at: Date())
@@ -173,7 +303,7 @@ final class AppModel {
     private func observe(_ o: ActivitySignal, at date: Date) {
         if case .appActivated(let app) = o {
             titles.follow(app: app)
-            safari.frontmostChanged(to: app.bundleID)
+            browserProbe.frontmostChanged(to: app.bundleID)
         }
         if o == .systemDidWake || o == .screenUnlocked {
             titles.follow(app: WorkspaceMonitor.frontmostApp())
@@ -217,10 +347,17 @@ final class AppModel {
                                    requestLogCutoff: now.addingTimeInterval(-Double(settings.requestLogRetentionDays) * 86400))
         }
         await scheduleDeadline()
-        if settings.agentEnabled {
+        if settings.agentEnabled && settings.automaticWindowAnalysis {
             agentBusy = true
             await coordinator.processDueWindows()
             agentBusy = await coordinator.isProcessing
+        } else {
+            // Feedback comes from scheduled check-ins; close windows quietly instead of queueing them forever.
+            for var w in (try? await store.windows(status: [.ready])) ?? [] where w.kind != .manual {
+                w.status = .skipped
+                w.lastError = "Automatic analysis is off (scheduled check-ins provide feedback)"
+                try? await store.saveWindow(w)
+            }
         }
         await refresh()
     }
@@ -241,6 +378,7 @@ final class AppModel {
             requestLog = try await store.requestLog(limit: 100)
             dailySummaries = try await store.dailySummaries(limit: 30)
             rules = try await store.rules()
+            checkins = try await store.checkins(limit: 30)
         } catch { lastError = "Could not read data: \(error)" }
         current = await tracker.currentSnapshot(at: now)
         calendarStatus = await eventKit.status()
@@ -263,10 +401,14 @@ final class AppModel {
                                 : AXIsProcessTrusted() ? "Accessibility granted" : "Accessibility not granted — app-level only"))
         let seen = BrowserInbox.lastActivity()
         let ext = seen.map { Date().timeIntervalSince($0) < 6 * 3600 } ?? false
-        h.append(HealthItem(name: "Browser extension", level: !settings.browserExtensionEnabled ? .off : ext ? .ok : .degraded,
-                            detail: ext ? "Reporting" : "Not detected — install from Settings → Browser"))
-        h.append(HealthItem(name: "Safari", level: settings.browserAutomationEnabled ? .ok : .off,
-                            detail: settings.browserAutomationEnabled ? "Automation enabled" : "Not tracked (enable in Settings → Browser)"))
+        let chromeDetail: String = switch permissions.chromeAutomation {
+        case .granted: "Reading Chrome's active tab"
+        case .denied: "Automation denied — allow in System Settings → Privacy → Automation"
+        case .notDetermined: permissions.chromeRunning ? "Not yet allowed — click Fix permissions" : "Will ask when Chrome is open"
+        }
+        h.append(HealthItem(name: "Chrome tabs", level: !settings.browserAutomationEnabled ? .off
+                                : (permissions.chromeAutomation == .granted || ext) ? .ok : .degraded,
+                            detail: ext ? "Extension reporting" : chromeDetail))
         h.append(HealthItem(name: "Calendar", level: calendarStatus.isConnected ? .ok : .degraded, detail: calendarStatus.label))
         switch settings.agentBackend {
         case .claudeSubscription:
@@ -333,7 +475,7 @@ final class AppModel {
             await tracker.updateSettings(s)
             idle.threshold = s.idleThresholdSeconds
             configureTitleObserver()
-            safari.enabled = s.browserAutomationEnabled
+            browserProbe.enabled = s.browserAutomationEnabled && !s.privateMode
             if s.trackingEnabled != old.trackingEnabled {
                 if s.trackingEnabled { await startTracking() } else { await stopTracking() }
             }
@@ -515,4 +657,15 @@ final class AppModel {
     var awakeRemaining: TimeInterval {
         max(0, settings.analysisIntervalSeconds - (openWindow?.awakeSeconds ?? 0))
     }
+}
+
+struct PermissionStatus: Equatable {
+    enum Grant: Equatable { case granted, denied, notDetermined }
+    var accessibility = false
+    var calendar: Grant = .notDetermined
+    var chromeInstalled = false
+    var chromeRunning = false
+    var chromeAutomation: Grant = .notDetermined
+    var chromeExtension = false
+    var notifications = false
 }

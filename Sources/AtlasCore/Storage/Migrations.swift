@@ -151,6 +151,17 @@ enum Migrations {
             clean_shutdown INTEGER NOT NULL
         );
         """),
+        (2, """
+        -- Feedback written back by scheduled Claude check-ins (via `atlas checkin`).
+        CREATE TABLE checkin (
+            id TEXT PRIMARY KEY,
+            ts REAL NOT NULL,
+            source TEXT NOT NULL,
+            verdict TEXT,
+            body TEXT NOT NULL
+        );
+        CREATE INDEX idx_checkin_ts ON checkin(ts);
+        """),
     ]
 
     static var latestVersion: Int { all.last?.version ?? 0 }

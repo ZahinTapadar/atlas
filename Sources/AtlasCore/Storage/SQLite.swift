@@ -63,15 +63,16 @@ public final class SQLiteConnection {
     private var db: OpaquePointer?
     public let path: String
 
-    public init(path: String) throws {
+    public init(path: String, readOnly: Bool = false) throws {
         self.path = path
-        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        let flags = (readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE) | SQLITE_OPEN_FULLMUTEX
         if sqlite3_open_v2(path, &db, flags, nil) != SQLITE_OK {
             let msg = db.map { String(cString: sqlite3_errmsg($0)) } ?? "open failed"
             sqlite3_close(db)
             throw SQLiteError(code: -1, message: msg)
         }
         sqlite3_busy_timeout(db, 5000)
+        if readOnly { return }
         // WAL gives crash-safe, atomic commits and lets the native host write concurrently.
         try execute("PRAGMA journal_mode=WAL")
         try execute("PRAGMA synchronous=NORMAL")

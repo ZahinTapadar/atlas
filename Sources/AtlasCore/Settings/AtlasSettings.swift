@@ -79,7 +79,7 @@ public struct AtlasSettings: Codable, Hashable, Sendable {
 
     // Browser
     public var browserExtensionEnabled = true
-    public var browserAutomationEnabled = false
+    public var browserAutomationEnabled = true
     public var captureFullURLs = false
     public var trackIncognito = false
 
@@ -95,6 +95,11 @@ public struct AtlasSettings: Codable, Hashable, Sendable {
 
     // Agent
     public var agentEnabled = true
+    /// Analyze each awake-time window automatically in the app. Off by default: scheduled Claude
+    /// check-ins (via the atlas MCP server) provide the feedback. "Analyze Now" always works.
+    public var automaticWindowAnalysis = false
+    public var onboardingCompleted = false
+    public var accessibilityPromptShown = false
     /// Subscription by default. The API backend is used only if the user selects it; never as a fallback.
     public var agentBackend: AgentBackend = .claudeSubscription
     /// Optional explicit path to the `claude` CLI (otherwise common install locations are searched).

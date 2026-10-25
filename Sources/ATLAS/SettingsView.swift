@@ -40,6 +40,7 @@ struct GeneralSettings: View {
     var body: some View {
         Form {
             Section("Tracking") {
+                Button("Permissions & setup…") { model.showOnboarding = true }
                 Toggle("Tracking enabled", isOn: setting(model, \.trackingEnabled))
                 Toggle("Private mode (record only active/idle time, no apps, titles or sites)", isOn: setting(model, \.privateMode))
                 Toggle("Launch at login", isOn: setting(model, \.launchAtLogin))
@@ -169,26 +170,21 @@ struct BrowserSettings: View {
     @Environment(AppModel.self) private var model
     var body: some View {
         Form {
-            Section("Chrome, Edge, Brave, Arc, Vivaldi (extension)") {
-                Toggle("Use browser extension data", isOn: setting(model, \.browserExtensionEnabled))
-                Text("""
-                macOS can't see browser tabs on its own. The ATLAS extension reports the active tab's domain and title \
-                through Chrome native messaging (no local server). To install:
-                1. Run scripts/install-native-host.sh (registers the atlas-nm-host helper).
-                2. Open chrome://extensions, enable Developer mode, "Load unpacked" → Extensions/chromium.
-                3. Copy the extension ID into the script if prompted.
-                """).font(.caption).textSelection(.enabled)
-                Toggle("Record incognito/private tabs (also needs \"Allow in Incognito\")", isOn: setting(model, \.trackIncognito))
+            Section("Chrome, Brave, Edge, Arc, Vivaldi, Safari") {
+                Toggle("Read the front tab via Automation (asks permission once per browser)", isOn: setting(model, \.browserAutomationEnabled))
+                Toggle("Use the ATLAS extension when installed (preferred)", isOn: setting(model, \.browserExtensionEnabled))
+                HStack {
+                    Button("Allow Chrome access…") { model.requestChromeAccess() }
+                    Button("Install Chrome extension…") { model.installChromeExtension() }
+                }
+                Text("macOS can't see browser tabs by itself. Automation works immediately and checks the front tab every 10 s while a browser is frontmost. The extension is event-driven and also reports audio; Chrome requires loading it once via Developer mode → Load unpacked (ATLAS registers its helper automatically, extension ID \(ChromeExtension.id)).")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Record incognito/private tabs", isOn: setting(model, \.trackIncognito))
                 Toggle("Store full URLs (otherwise domain + title only)", isOn: setting(model, \.captureFullURLs))
             }
             Section("Firefox") {
                 Text("Load Extensions/firefox via about:debugging → This Firefox → Load Temporary Add-on, then run scripts/install-native-host.sh --firefox.")
                     .font(.caption)
-            }
-            Section("Safari") {
-                Toggle("Ask Safari for its front tab via Automation", isOn: setting(model, \.browserAutomationEnabled))
-                Text("Safari extensions must ship in a signed Xcode app, so ATLAS uses Apple Events instead: only while Safari is frontmost, every 15 s. macOS asks for permission the first time. Private windows aren't reported.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -235,7 +231,10 @@ struct ClaudeSettings: View {
                     }
                     Text("Billed per token to your Anthropic Console account.").font(.caption).foregroundStyle(.secondary)
                 }
-                Toggle("Agent enabled", isOn: setting(model, \.agentEnabled))
+                Toggle("Agent enabled (Analyze Now)", isOn: setting(model, \.agentEnabled))
+                Toggle("Also analyze every awake-time window automatically", isOn: setting(model, \.automaticWindowAnalysis))
+                Text("Usually off: your scheduled Claude check-ins read ATLAS via MCP and give the feedback, so this would double your usage.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Picker("Model", selection: setting(model, \.model)) {
                     Text("Claude Opus 5.5").tag("claude-opus-5-5")
                     Text("Claude Sonnet 5.5").tag("claude-sonnet-5-5")

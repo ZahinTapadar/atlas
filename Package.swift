@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .executable(name: "ATLAS", targets: ["ATLAS"]),
         .executable(name: "atlas-nm-host", targets: ["AtlasNativeHost"]),
+        .executable(name: "atlasctl", targets: ["AtlasCLI"]),
         .library(name: "AtlasCore", targets: ["AtlasCore"]),
     ],
     targets: [
@@ -31,6 +32,12 @@ let package = Package(
         // tab metadata into ATLAS's inbox directory, exits when the browser disconnects.
         .executableTarget(
             name: "AtlasNativeHost",
+            dependencies: ["AtlasCore"]
+        ),
+        // `atlasctl` command-line tool and MCP server (stdio). Lets Claude — e.g. a scheduled check-in —
+        // read tracked activity and record feedback, without ATLAS doing any planning itself.
+        .executableTarget(
+            name: "AtlasCLI",
             dependencies: ["AtlasCore"]
         ),
         .testTarget(

@@ -8,15 +8,19 @@ public struct ClassificationInput: Sendable {
     public var domain: String?
     public var pageTitle: String?
     public var state: ActivityState
+    public var declaredCategory: String?
+    public var bundlePath: String?
 
     public init(bundleID: String?, appName: String?, windowTitle: String?, domain: String?, pageTitle: String?,
-                state: ActivityState) {
+                state: ActivityState, declaredCategory: String? = nil, bundlePath: String? = nil) {
         self.bundleID = bundleID
         self.appName = appName
         self.windowTitle = windowTitle
         self.domain = domain
         self.pageTitle = pageTitle
         self.state = state
+        self.declaredCategory = declaredCategory
+        self.bundlePath = bundlePath
     }
 
     public init(event e: ActivityEvent) {
@@ -73,7 +77,8 @@ public struct Classifier: Sendable {
         if let domain {
             result = classifyWeb(domain: domain, title: title, hasTitle: input.pageTitle?.isEmpty == false)
         } else if let bundle {
-            result = classifyApp(bundle: bundle, app: app ?? "", title: title, hasTitle: input.windowTitle?.isEmpty == false)
+            result = classifyApp(bundle: bundle, app: app ?? "", title: title, hasTitle: input.windowTitle?.isEmpty == false,
+                                 declared: input.declaredCategory?.lowercased(), path: input.bundlePath?.lowercased())
         } else {
             result = .unknown
         }
@@ -154,11 +159,36 @@ public struct Classifier: Sendable {
 
     // MARK: - Built-in app rules
 
-    private func classifyApp(bundle: String, app: String, title: String, hasTitle: Bool) -> Classification {
+    private func classifyApp(bundle: String, app: String, title: String, hasTitle: Bool,
+                             declared: String? = nil, path: String? = nil) -> Classification {
         var ev: [EvidenceSource] = [.appIdentity, .builtinRule]
         if hasTitle { ev.append(.windowTitle) }
 
+        if bundle == "com.atlas.tracker" {
+            return Classification(category: .administrative, confidence: 0.6, evidence: ev, explanation: "Reviewing ATLAS")
+        }
+        // Games installed through Steam/other launchers: bundle ids like "com.cdprojektred.cyberpunk.steam",
+        // or bundles living under steamapps/common.
+        if BuiltinRules.looksLikeInstalledGame(bundle: bundle, path: path) {
+            return Classification(category: .gaming, confidence: 0.8, evidence: ev, explanation: "Game installed via a game store")
+        }
+
+        // Installed web apps (Chrome/Edge/Brave "Install as app"): classify as the site they wrap.
+        if let domain = BuiltinRules.webAppDomain(bundle: bundle, appName: app) {
+            var c = classifyWeb(domain: domain, title: title, hasTitle: hasTitle)
+            c.evidence = ev
+            c.explanation = "Web app for \(domain)" + (c.explanation.map { "; \($0)" } ?? "")
+            return c
+        }
         if BuiltinRules.browserBundles.contains(bundle) {
+            // No tab data yet, but the window title often names the site ("Home / X - Google Chrome").
+            if hasTitle, let domain = BuiltinRules.siteFromWindowTitle(title) {
+                var c = classifyWeb(domain: domain, title: title, hasTitle: true)
+                c.evidence = ev
+                c.confidence = min(c.confidence, 0.6)
+                c.explanation = "Window title suggests \(domain)"
+                return c
+            }
             // A browser without tab metadata says nothing about what's on screen.
             return Classification(category: .unknown, confidence: 0.15, evidence: ev,
                                   explanation: "Browser in foreground; no tab data (extension not connected)")
@@ -189,8 +219,14 @@ public struct Classifier: Sendable {
         if let hit = BuiltinRules.appRules[bundle] {
             return Classification(category: hit.0, confidence: hit.1, evidence: ev, explanation: "Known app")
         }
-        if bundle.hasPrefix("com.apple.systempreferences") || bundle == "com.apple.finder" {
+        if bundle.hasPrefix("com.apple.systempreferences") || bundle == "com.apple.finder"
+            || BuiltinRules.systemUIBundles.contains(bundle) {
             return Classification(category: .administrative, confidence: 0.5, evidence: ev, explanation: "System utility")
+        }
+        // The app's own declared App Store category is solid evidence when nothing more specific matched.
+        if let declared, let hit = BuiltinRules.declaredCategoryMap.first(where: { declared.hasSuffix($0.key) })?.value {
+            return Classification(category: hit.0, confidence: hit.1, evidence: ev + [.appIdentity],
+                                  explanation: "App declares itself as \(declared.replacingOccurrences(of: "public.app-category.", with: ""))")
         }
         return Classification(category: .unknown, confidence: 0.2, evidence: ev,
                               explanation: "Unrecognized app \(app.isEmpty ? bundle : app)")
@@ -215,7 +251,7 @@ enum BuiltinRules {
         "net.kovidgoyal.kitty", "io.alacritty", "com.github.wez.wezterm",
     ]
     static let gameLauncherBundles: Set<String> = [
-        "com.valvesoftware.steam", "com.epicgames.epicgameslauncher", "com.blizzard.battle.net",
+        "com.valvesoftware.steam", "com.valvesoftware.steam.helper", "com.valvesoftware.steamlink", "com.epicgames.epicgameslauncher", "com.blizzard.battle.net",
         "com.gog.galaxy", "com.heroicgameslauncher.hgl",
     ]
     static let readerBundles: Set<String> = [
@@ -241,13 +277,86 @@ enum BuiltinRules {
         "com.apple.tv": (.entertainmentVideo, 0.75), "com.netflix.netflix": (.entertainmentVideo, 0.85),
         "com.apple.systempreferences": (.administrative, 0.6), "com.apple.appstore": (.administrative, 0.4),
         "com.apple.activitymonitor": (.administrative, 0.5),
+        "com.anthropic.claudefordesktop": (.research, 0.55), "com.openai.codex": (.coding, 0.55),
+        "com.openai.chat": (.research, 0.55), "com.google.geminimacos": (.research, 0.5),
+        "net.shinyfrog.bear": (.focusedWork, 0.6), "com.literatureandlatte.scrivener3": (.focusedWork, 0.7),
+        "com.culturedcode.things3": (.personalOrganization, 0.8), "com.colliderli.iina": (.entertainmentVideo, 0.6),
+        "com.apple.ibooksx": (.reading, 0.75),
     ]
     static let gameBundlePrefixes = ["com.valvesoftware.", "com.riotgames.", "com.blizzard.", "com.mojang.",
                                      "com.feralinteractive.", "com.aspyr.", "com.paradoxinteractive.", "unity."]
     static func looksLikeGame(bundle: String) -> Bool {
-        guard !gameLauncherBundles.contains(bundle) else { return false }
+        guard !gameLauncherBundles.contains(bundle), !bundle.hasPrefix("com.valvesoftware.steam") else { return false }
         return gameBundlePrefixes.contains(where: bundle.hasPrefix) || bundle.contains(".steamapps.")
     }
+
+    static func looksLikeInstalledGame(bundle: String, path: String?) -> Bool {
+        if gameLauncherBundles.contains(bundle) || bundle.hasPrefix("com.valvesoftware.steam") { return false }
+        if bundle.hasSuffix(".steam") || bundle.hasSuffix(".epic") || bundle.hasSuffix(".gog") { return true }
+        if let path, path.contains("/steamapps/common/") || path.contains("/epic games/") || path.contains("/gog galaxy/games/") {
+            return true
+        }
+        return gameStudioPrefixes.contains(where: bundle.hasPrefix)
+    }
+
+    /// Chrome-family PWAs have bundle ids like "com.google.Chrome.app.<extension-id>".
+    static func webAppDomain(bundle: String, appName: String) -> String? {
+        let prefixes = ["com.google.chrome.app.", "com.microsoft.edgemac.app.", "com.brave.browser.app.", "company.thebrowser.browser.app."]
+        guard let prefix = prefixes.first(where: bundle.hasPrefix) else { return nil }
+        let appID = String(bundle.dropFirst(prefix.count))
+        return knownWebApps[appID] ?? webAppNames[appName.lowercased()]
+    }
+
+    static let knownWebApps: [String: String] = [
+        "agimnkijcaahngcdmfeangaknmldooml": "youtube.com", "lodlkdfmihgonocnmddehnfgiljnadcf": "x.com",
+        "lgnggepjiihbfdbedefdhcffnmhcahbm": "reddit.com", "akpamiohjfcnimfljfndmaldlcfphjmp": "instagram.com",
+        "mjoklplbddabcmpepnokjaffbmgbkkgg": "web.whatsapp.com", "fmgjjmmmlfnkbppncabfkddbjimcfncm": "mail.google.com",
+        "kjbdgfilnfhdoflbpgamdcdgpehopbep": "calendar.google.com", "mpnpojknpmmopombnjdcgaaiekajbnjb": "docs.google.com",
+    ]
+
+    static let webAppNames: [String: String] = [
+        "youtube": "youtube.com", "x": "x.com", "twitter": "x.com", "reddit": "reddit.com", "instagram": "instagram.com",
+        "facebook": "facebook.com", "tiktok": "tiktok.com", "netflix": "netflix.com", "gmail": "mail.google.com",
+        "google calendar": "calendar.google.com", "google docs": "docs.google.com", "notion": "notion.so",
+        "chatgpt": "chatgpt.com", "claude": "claude.ai", "linkedin": "linkedin.com", "twitch": "twitch.tv",
+        "whatsapp": "web.whatsapp.com", "discord": "discord.com", "spotify": "open.spotify.com",
+    ]
+
+    /// Recognize a site from a browser window title such as "Home / X - Google Chrome" or "Inbox (3) - Gmail".
+    static func siteFromWindowTitle(_ title: String) -> String? {
+        var t = title.lowercased()
+        for suffix in [" - google chrome", " - brave", " - microsoft edge", " - arc", " - vivaldi", " — mozilla firefox", " - safari"] {
+            if let r = t.range(of: suffix, options: .backwards) { t = String(t[..<r.lowerBound]) }
+        }
+        let tokens: [(String, String)] = [
+            ("/ x", "x.com"), (" on x:", "x.com"), ("youtube", "youtube.com"), ("instagram", "instagram.com"),
+            ("reddit", "reddit.com"), ("facebook", "facebook.com"), ("tiktok", "tiktok.com"), ("netflix", "netflix.com"),
+            ("gmail", "mail.google.com"), ("google docs", "docs.google.com"), ("google calendar", "calendar.google.com"),
+            ("stack overflow", "stackoverflow.com"), ("github", "github.com"), ("linkedin", "linkedin.com"),
+            ("twitch", "twitch.tv"), ("chatgpt", "chatgpt.com"), ("claude", "claude.ai"), ("wikipedia", "wikipedia.org"),
+            ("whatsapp", "web.whatsapp.com"), ("discord", "discord.com"), ("notion", "notion.so"),
+        ]
+        return tokens.first { t.hasSuffix($0.0) || t.contains(" - \($0.0)") || t.contains("| \($0.0)") || t == $0.0 || t.contains($0.0 + " ") && $0.0.count > 4 }?.1
+    }
+
+    static let gameStudioPrefixes = ["com.cdprojektred.", "com.rockstargames.", "com.bethesda.", "com.ubisoft.", "com.ea.",
+                                     "com.2k.", "com.larian.", "com.capcom.", "com.squareenix.", "com.sega.", "com.bandainamco.",
+                                     "com.hoyoverse.", "com.mihoyo.", "com.supercell.", "com.epicgames.fortnite", "com.mojang."]
+
+    static let systemUIBundles: Set<String> = ["com.apple.usernotificationcenter", "com.apple.loginwindow",
+                                               "com.apple.dock", "com.apple.controlcenter", "com.apple.spotlight",
+                                               "com.apple.notificationcenterui", "com.apple.systemuiserver"]
+
+    /// LSApplicationCategoryType suffix → category. Games use "games" and "*-games".
+    static let declaredCategoryMap: [String: (ActivityCategory, Double)] = [
+        "games": (.gaming, 0.75), "-games": (.gaming, 0.75), "developer-tools": (.coding, 0.65),
+        "social-networking": (.socialMedia, 0.7), "entertainment": (.entertainmentVideo, 0.5),
+        "video": (.entertainmentVideo, 0.55), "music": (.breakTime, 0.35), "education": (.research, 0.6),
+        "reference": (.research, 0.5), "books": (.reading, 0.65), "news": (.research, 0.4),
+        "productivity": (.focusedWork, 0.5), "business": (.focusedWork, 0.5), "finance": (.administrative, 0.5),
+        "utilities": (.administrative, 0.45), "graphics-design": (.focusedWork, 0.55), "photography": (.focusedWork, 0.4),
+        "lifestyle": (.personalOrganization, 0.35), "health-fitness": (.personalOrganization, 0.35),
+    ]
 
     static let videoDomains = ["youtube.com", "youtu.be", "vimeo.com", "twitch.tv", "dailymotion.com", "bilibili.com"]
     static let searchDomains = ["google.com", "duckduckgo.com", "bing.com", "kagi.com", "search.brave.com", "perplexity.ai"]

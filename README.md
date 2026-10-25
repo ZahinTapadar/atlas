@@ -1,6 +1,8 @@
 # ATLAS
 
-A local-first macOS activity tracker (**System A**) and an event-driven Claude scheduling agent (**System B**).
+A local-first macOS activity tracker. ATLAS **only tracks**; it does not plan. Feedback comes from a scheduled
+Claude check-in that reads ATLAS through its MCP server and compares what you actually did with your calendar and
+your Daily Briefing (see **Claude check-ins** below).
 The tracker records how you spend time on your Mac. After every N hours of *awake* time it sends one minimized,
 privacy-filtered summary to Claude, through **your Claude subscription via Claude Code**. No API credits are needed. Claude compares what you planned with what you did and proposes a realistic
 next block. Calendar changes go through an explicit authorization policy.
@@ -12,9 +14,29 @@ next block. Calendar changes go through an explicit authorization policy.
 
 ```bash
 swift test                    # core logic, fixtures only; no real usage needed
-./scripts/build-app.sh        # → build/ATLAS.app (ad-hoc signed)
-open build/ATLAS.app
+./scripts/build-app.sh        # build, sign, install ~/Applications/ATLAS.app, link atlasctl, register the MCP server
+open ~/Applications/ATLAS.app
 ```
+
+On first launch a **setup screen** requests every permission (Window titles/Accessibility, Chrome tabs/Automation,
+the optional Chrome extension, Calendar, Notifications). It reopens from **Fix permissions…** on the dashboard or
+from Settings → General. The build signs with your "Apple Development" certificate when one is present: macOS ties
+permission grants to the signing identity, so ad-hoc builds would lose them on every rebuild. The entitlements in
+`Resources/ATLAS.entitlements` are required; under the hardened runtime, Calendar and Apple Events requests are
+refused silently without them.
+
+## Claude check-ins (the part after tracking)
+
+- `atlasctl` (installed to `~/.local/bin`) prints summaries: `atlasctl today`, `atlasctl summary --from -3h --json --timeline`, `atlasctl now`.
+- `atlasctl mcp` is an MCP server registered for Claude at user scope as **`atlas`**. Tools:
+  `get_activity_summary`, `get_current_activity`, `get_recent_checkins`, and `record_checkin`, which writes
+  feedback back into ATLAS. The data uses the same privacy filtering as everything else.
+- The scheduled task **ATLAS Check-in** (Claude app → Scheduled; `~/.claude/scheduled-tasks/atlas-checkin/SKILL.md`)
+  runs at 9:00, 12:00, 15:00, 18:00 and 21:00. Each run reads ATLAS, your Google Calendar, and that day's output
+  of your existing **Daily Briefing** routine, then gives a verdict (on track / mixed / off track) with minutes and
+  next steps. The verdict is saved into ATLAS's Agent panel and dashboard.
+- Automatic in-app analysis of each 3-hour window is off by default, to avoid spending your plan twice.
+  **Analyze Now** still works.
 
 Use the bundled app, not `swift run`, for daily use: notifications, Calendar prompts and launch-at-login need a real bundle.
 Then:
@@ -24,10 +46,16 @@ Then:
 3. **Calendar** → connect Apple Calendar and choose an authorization level.
 4. **Browser** → install the extension (below) and/or enable Safari automation.
 
-### Browser extension (Chrome, Edge, Brave, Arc, Vivaldi, Firefox)
-macOS cannot see browser tabs on its own. The extension reports only the active tab's URL/title, using native messaging:
-1. `chrome://extensions` → Developer mode → **Load unpacked** → `Extensions/chromium`. Copy the extension ID.
-2. `./scripts/install-native-host.sh <extension-id>` (add `--firefox` after loading `Extensions/firefox` in Firefox).
+### Browser tabs (Chrome and other Chromium browsers, Safari)
+macOS cannot see browser tabs on its own. ATLAS has two sources:
+1. **Automation (works immediately):** while a browser is frontmost, ATLAS asks it for the front tab's URL and title
+   every 10 s. macOS asks permission once per browser.
+2. **Extension (optional, more precise):** event-driven, and reports audio and incognito. The extension has a fixed
+   ID (`llolohdkomppidilbbmkmoognfcgoheh`), so ATLAS registers its native-messaging helper automatically. Chrome
+   still requires loading it once by hand: setup screen → Install… → Developer mode → **Load unpacked** →
+   the highlighted `chromium` folder.
+
+Chrome "installed apps" (X, YouTube, Reddit…) are classified as the sites they wrap.
 
 The browser launches `atlas-nm-host`, which appends messages to `~/Library/Application Support/ATLAS/BrowserInbox/`.
 The app drains that folder on its 30 s tick. There is no local server or open socket.
@@ -150,6 +178,7 @@ form or password capture, and no document or source contents.
 - Lock-screen notifications never include site names or window titles.
 
 ## Known limitations (macOS restrictions, stated honestly)
+- **Games:** detected from Steam/launcher bundle ids (`*.steam`), `steamapps/common` paths, studio prefixes, and each app's declared App Store category. Steam's own client and helper count as "launcher" (weaker gaming evidence).
 - **Safari extension:** Safari Web Extensions must ship inside a signed Xcode app target, which SwiftPM can't build. The fallback is Apple Events, polled every 15 s only while Safari is frontmost. Private windows aren't visible to it.
 - **Controllers:** game-controller input doesn't reset the HID idle counter. A foreground game without keyboard/mouse input is credited as *passive* for 15 min, then idle. It is never "active gaming" by inference.
 - **Media playback:** "audible" comes only from the browser extension. Native video apps rely on the passive grace period.
