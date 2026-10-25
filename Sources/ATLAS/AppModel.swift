@@ -17,6 +17,7 @@ struct HealthItem: Identifiable, Hashable {
 @MainActor
 @Observable
 final class AppModel {
+    static let shared = AppModel()
     // Persistent services
     let store: AtlasStore
     let tracker: TrackerCore
@@ -452,8 +453,9 @@ final class AppModel {
             let staged = try await Updater.stage(r, replacing: app) { msg in Task { @MainActor in self.updateStatus = msg } }
             updateStatus = "Restarting into ATLAS \(r.version)…"
             try Updater.installOnExit(staged: staged, replacing: app)
-            await stopTracking()
-            NSApp.terminate(nil)
+            // Exit directly: NSApp.terminate is cancelled while a sheet (this one) is open.
+            shutdown()
+            exit(0)
         } catch {
             updateStatus = error.localizedDescription
         }

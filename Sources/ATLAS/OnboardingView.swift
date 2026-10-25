@@ -142,10 +142,10 @@ struct OnboardingView: View {
             await model.refreshSetup()
         }
         .task {
-            // The check-in task is created in Claude, outside ATLAS: notice it appearing.
+            // The check-in task is created in Claude, outside ATLAS: notice it appearing (a file check, cheap).
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
-                await model.refreshSetup()
+                model.checkinTaskInstalled = CheckinTask.isInstalled()
             }
         }
     }

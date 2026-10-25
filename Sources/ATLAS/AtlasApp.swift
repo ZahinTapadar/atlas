@@ -3,7 +3,9 @@ import SwiftUI
 
 @main
 struct AtlasApp: App {
-    @State private var model = AppModel()
+    // One model for the life of the process. SwiftUI may create this struct more than once, and an
+    // `AppModel()` initializer here would boot a second tracker each time.
+    @State private var model = AppModel.shared
 
     init() {
         // `open -n ATLAS.app --args --diagnose` records what macOS reports for this exact app identity, then exits.
