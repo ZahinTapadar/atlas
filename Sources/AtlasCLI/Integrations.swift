@@ -95,12 +95,18 @@ enum Integrations {
 
     // MARK: Mail
 
-    /// Sends a plain-text email from the default Mail account to `to`.
+    /// Sends a plain-text email to `to`. When Mail has an account for the recipient's own address, the message
+    /// is sent from it: mail to yourself through your provider's SMTP is not filtered as spam, whereas a
+    /// message from another of your accounts (e.g. iCloud to Gmail) often is.
     static func sendEmail(to: String, subject: String, body: String) throws {
         let js = """
         function run(argv) {
           const Mail = Application('Mail');
-          const m = Mail.OutgoingMessage({ subject: argv[1], content: argv[2], visible: false });
+          const to = argv[0].toLowerCase();
+          const own = Mail.accounts().find(a => { try { return a.enabled() && a.emailAddresses().some(e => e.toLowerCase() === to) } catch (e) { return false } });
+          const props = { subject: argv[1], content: argv[2], visible: false };
+          if (own) props.sender = argv[0];
+          const m = Mail.OutgoingMessage(props);
           Mail.outgoingMessages.push(m);
           m.toRecipients.push(Mail.Recipient({ address: argv[0] }));
           m.send();

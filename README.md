@@ -23,8 +23,8 @@
 </p>
 
 <p align="center">
-  <a href="https://zahintapadar.github.io/atlas/#film"><img src="docs/assets/atlas-promo-poster.jpg" width="820" alt="Watch the 34-second ATLAS film"></a><br>
-  <sub>Watch the 34-second film · <a href="docs/assets/atlas-promo.mp4">MP4</a></sub>
+  <a href="https://zahintapadar.github.io/atlas/#film"><img src="docs/assets/atlas-promo-poster.jpg" width="820" alt="Watch the 48-second ATLAS film"></a><br>
+  <sub>Watch the 48-second film · <a href="docs/assets/atlas-promo.mp4">MP4</a></sub>
 </p>
 
 <p align="center">
