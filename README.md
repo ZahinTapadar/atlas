@@ -1,4 +1,29 @@
-# ATLAS
+<p align="center">
+  <img src="docs/assets/icon.png" width="128" height="128" alt="ATLAS icon">
+</p>
+
+<h1 align="center">ATLAS</h1>
+
+<p align="center">
+  <strong>Know where your time actually goes.</strong><br>
+  A quiet, local-first activity tracker for macOS, with scheduled Claude check-ins.
+</p>
+
+<p align="center">
+  <a href="https://zahintapadar.github.io/atlas/">Website</a> ·
+  <a href="#build--run">Install</a> ·
+  <a href="#claude-check-ins-the-part-after-tracking">Claude check-ins</a> ·
+  <a href="#privacy--data">Privacy</a>
+</p>
+
+<p align="center">
+  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-111?logo=swift&logoColor=white">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111">
+</p>
+
+---
+
 
 A local-first macOS activity tracker. ATLAS **only tracks**; it does not plan. Feedback comes from a scheduled
 Claude check-in that reads ATLAS through its MCP server and compares what you actually did with your calendar and
@@ -185,8 +210,11 @@ form or password capture, and no document or source contents.
 - **Steam / launchers:** games are identified from bundle id prefixes and user rules. There is no Steam API integration yet.
 - **Distribution:** builds are ad-hoc signed. Shipping to others needs a Developer ID signature and notarization.
 
-## Implementation status
-Phases 1–4 of the brief are implemented and tested, along with the agent, integrations, UI, notifications, privacy
-and reliability sections (§8–§15). The brief was truncated partway through Phase 4, so any later phases weren't
-visible. Logical next steps: Google Calendar and Todoist connectors (the `CalendarConnector` protocol is ready), an
-Xcode project with a Safari Web Extension target, and a Steam local-library integration.
+## Roadmap
+- Google Calendar and Todoist connectors (the `CalendarConnector` protocol is ready)
+- An Xcode project with a native Safari Web Extension target
+- Steam local-library integration for exact game identity
+- Developer ID signing and notarized releases
+
+## License
+[MIT](LICENSE)

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATLAS — Know where your time goes</title>
+<meta name="description" content="ATLAS is a local-first activity tracker for macOS. It records what you actually do, privately, and lets Claude tell you whether you're on track.">
+<meta property="og:title" content="ATLAS — Know where your time goes">
+<meta property="og:description" content="A local-first activity tracker for macOS, with scheduled Claude check-ins.">
+<meta property="og:image" content="https://zahintapadar.github.io/atlas/assets/icon.png">
+<meta name="theme-color" content="#111113">
+<link rel="icon" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f5f5f7;
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #e5e5ea;
+    --card: #ffffff;
+    --accent: #1d1d1f;
+    --accent-text: #ffffff;
+    --win: #fbfbfd;
+    --win-side: #f2f2f5;
+    --code-bg: #f5f5f7;
+    --c-coding: #3b82f6; --c-research: #14b8a6; --c-comm: #eab308; --c-social: #f97316; --c-unk: #d4a23a; --c-idle: #d1d1d6;
+    --ok: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0b0c; --bg-soft: #141416; --text: #f5f5f7; --muted: #8e8e93; --line: #262629;
+      --card: #141416; --accent: #f5f5f7; --accent-text: #0b0b0c; --win: #18181b; --win-side: #121214;
+      --code-bg: #141416; --c-idle: #3a3a3d; --ok: #22c55e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: .02em; text-decoration: none; }
+  nav .brand img { width: 26px; height: 26px; }
+  nav .links { display: flex; gap: 24px; font-size: 15px; color: var(--muted); }
+  nav .links a { text-decoration: none; }
+  nav .links a:hover { color: var(--text); }
+
+  header.hero { text-align: center; padding: 72px 0 40px; }
+  .hero img.icon { width: 112px; height: 112px; filter: drop-shadow(0 12px 24px rgba(0,0,0,.18)); }
+  .hero h1 { font-size: clamp(40px, 6vw, 64px); line-height: 1.05; letter-spacing: -.025em; margin: 28px 0 16px; font-weight: 700; }
+  .hero p.lede { font-size: clamp(18px, 2.2vw, 21px); color: var(--muted); max-width: 620px; margin: 0 auto 32px; }
+  .cta { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 999px; font-size: 15px; font-weight: 500; text-decoration: none; border: 1px solid var(--line); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn:hover { opacity: .88; }
+  .meta { margin-top: 18px; font-size: 13px; color: var(--muted); }
+
+  /* Product mock — illustrative data */
+  .shot { margin: 56px auto 0; max-width: 920px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
+          background: var(--win); box-shadow: 0 30px 80px -30px rgba(0,0,0,.35); text-align: left; }
+  .shot .bar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+  .shot .bar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .shot .bar i:nth-child(1) { background: #ff5f57; } .shot .bar i:nth-child(2) { background: #febc2e; } .shot .bar i:nth-child(3) { background: #28c840; }
+  .shot .bar span { margin-left: 12px; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .shot .body { display: grid; grid-template-columns: 170px 1fr; min-height: 380px; }
+  .side { background: var(--win-side); border-right: 1px solid var(--line); padding: 14px 10px; font-size: 13px; }
+  .side div { padding: 6px 10px; border-radius: 6px; color: var(--muted); }
+  .side div.on { background: var(--line); color: var(--text); font-weight: 500; }
+  .side .status { margin-top: 210px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+  .main { padding: 18px 20px; display: grid; gap: 14px; }
+  .now { font-size: 15px; font-weight: 600; } .now small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .strip { height: 18px; border-radius: 4px; overflow: hidden; display: flex; background: var(--c-idle); }
+  .strip b { display: block; height: 100%; }
+  .row2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+  .pane { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--card); font-size: 13px; }
+  .pane h4 { margin: 0 0 8px; font-size: 13px; }
+  .cat { display: grid; grid-template-columns: 1fr 52px 80px; align-items: center; gap: 8px; padding: 3px 0; }
+  .cat .t { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .cat .g { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .cat .g b { display: block; height: 100%; }
+  .chip { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: rgba(22,163,74,.14); color: var(--ok); margin-bottom: 6px; }
+  .pane p { margin: 0; color: var(--muted); line-height: 1.45; }
+  .pane p strong { color: var(--text); font-weight: 600; }
+
+  section { padding: 96px 0 0; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  h2 { font-size: clamp(30px, 4vw, 40px); letter-spacing: -.02em; line-height: 1.12; margin: 10px 0 14px; }
+  .sub { color: var(--muted); max-width: 620px; margin: 0; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 40px; }
+  .grid3 > div { background: var(--bg); padding: 28px; }
+  .grid3 .n { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .grid3 h3 { margin: 10px 0 8px; font-size: 19px; letter-spacing: -.01em; }
+  .grid3 p { margin: 0; color: var(--muted); font-size: 15px; }
+  ul.list { list-style: none; padding: 0; margin: 36px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
+  ul.list li { padding: 16px 0; border-top: 1px solid var(--line); font-size: 15px; }
+  ul.list li b { display: block; font-weight: 600; margin-bottom: 2px; }
+  ul.list li span { color: var(--muted); }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; overflow-x: auto;
+        font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; margin: 28px 0 0; }
+  pre .c { color: var(--muted); }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+  footer { margin-top: 120px; border-top: 1px solid var(--line); padding: 28px 0 48px; font-size: 13px; color: var(--muted);
+           display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { text-decoration: none; } footer a:hover { color: var(--text); }
+
+  @media (max-width: 980px) { .split { grid-template-columns: 1fr; gap: 0; } }
+  @media (max-width: 760px) {
+    nav .links a:not(.gh) { display: none; }
+    .shot .body { grid-template-columns: 1fr; } .side { display: none; }
+    .row2, .grid3, ul.list, .split { grid-template-columns: 1fr; }
+    section { padding-top: 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="assets/icon.png" alt="">ATLAS</a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#claude">Claude</a>
+      <a href="#install">Install</a>
+      <a class="gh" href="https://github.com/ZahinTapadar/atlas">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <img class="icon" src="assets/icon.png" alt="ATLAS app icon">
+    <h1>Know where your<br>time actually goes.</h1>
+    <p class="lede">ATLAS is a quiet, local-first activity tracker for macOS. It records what you really do, keeps it on your Mac, and lets Claude tell you when you're on track and when you're not.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Build for macOS</a>
+      <a class="btn" href="https://github.com/ZahinTapadar/atlas">View on GitHub</a>
+    </div>
+    <div class="meta">macOS 14 or later · Apple Silicon native · Open source</div>
+
+    <div class="shot" aria-label="Illustration of the ATLAS dashboard with sample data">
+      <div class="bar"><i></i><i></i><i></i><span>Dashboard</span></div>
+      <div class="body">
+        <div class="side">
+          <div class="on">Dashboard</div><div>Timeline</div><div>Agent</div><div>Reports</div>
+          <div class="status"><span class="dot"></span>Tracking</div>
+        </div>
+        <div class="main">
+          <div class="now">Xcode — TrackerCore.swift<small>Coding &amp; development · Active · since 10:42</small></div>
+          <div class="strip">
+            <b style="width:6%;background:var(--c-idle)"></b><b style="width:18%;background:var(--c-coding)"></b>
+            <b style="width:4%;background:var(--c-comm)"></b><b style="width:9%;background:var(--c-research)"></b>
+            <b style="width:3%;background:var(--c-social)"></b><b style="width:22%;background:var(--c-coding)"></b>
+            <b style="width:5%;background:var(--c-idle)"></b><b style="width:6%;background:var(--c-research)"></b>
+            <b style="width:2%;background:var(--c-unk)"></b>
+          </div>
+          <div class="row2">
+            <div class="pane">
+              <h4>Time by category</h4>
+              <div class="cat"><span>Coding &amp; development</span><span class="t">3h 12m</span><span class="g"><b style="width:92%;background:var(--c-coding)"></b></span></div>
+              <div class="cat"><span>Research &amp; learning</span><span class="t">1h 05m</span><span class="g"><b style="width:31%;background:var(--c-research)"></b></span></div>
+              <div class="cat"><span>Communication</span><span class="t">34m</span><span class="g"><b style="width:16%;background:var(--c-comm)"></b></span></div>
+              <div class="cat"><span>Social media</span><span class="t">18m</span><span class="g"><b style="width:9%;background:var(--c-social)"></b></span></div>
+              <div class="cat"><span>Unclassified</span><span class="t">6m</span><span class="g"><b style="width:3%;background:var(--c-unk)"></b></span></div>
+            </div>
+            <div class="pane">
+              <h4>Latest check-in</h4>
+              <span class="chip">On track</span>
+              <p><strong>3h 12m of focused coding on the release, social media held to 18m.</strong> Longest focus block: 74 minutes.</p>
+              <p style="margin-top:8px">Next: protect 14:00–16:00 for the API docs before your 16:30 review.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="how">
+    <div class="eyebrow">How it works</div>
+    <h2>It tracks. Claude coaches.</h2>
+    <p class="sub">ATLAS does one thing well: an honest record of your day. The judgment happens later, on a schedule you choose.</p>
+    <div class="grid3">
+      <div><div class="n">01</div><h3>Track</h3><p>A native, event-driven tracker follows apps, windows, browser tabs, idle time and sleep. No polling loops, no screenshots.</p></div>
+      <div><div class="n">02</div><h3>Understand</h3><p>A local classifier sorts time into coding, research, reading, video, gaming, social and more, and labels uncertain time as uncertain instead of guessing.</p></div>
+      <div><div class="n">03</div><h3>Check in</h3><p>A scheduled Claude task reads ATLAS, your calendar and your daily briefing, then tells you plainly whether you're on track and what to do next.</p></div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="eyebrow">Privacy</div>
+    <h2>Your day stays on your Mac.</h2>
+    <p class="sub">ATLAS watches highly personal behavior, so privacy is built into its design rather than added on later.</p>
+    <ul class="list">
+      <li><b>Local-first storage</b><span>A SQLite database in your Library. Export it or delete it at any time.</span></li>
+      <li><b>No keylogging, no screenshots</b><span>It never reads keystrokes, form fields, passwords, documents or screen contents.</span></li>
+      <li><b>Exclusions and private mode</b><span>Excluded apps and sites are stored as timing only, with no names, titles or URLs.</span></li>
+      <li><b>Summaries, not streams</b><span>Claude sees compact summaries on demand, never a live feed or your full browsing history.</span></li>
+      <li><b>Explicit permissions</b><span>Each permission is requested openly and can be skipped. ATLAS still works without them.</span></li>
+      <li><b>Your Claude plan, not API billing</b><span>Analyses run through Claude Code with your subscription. ATLAS never falls back to an API key.</span></li>
+    </ul>
+  </section>
+
+  <section id="claude">
+    <div class="split">
+      <div>
+        <div class="eyebrow">Built for Claude</div>
+        <h2>An MCP server for your own activity.</h2>
+        <p class="sub">ATLAS ships with <code>atlasctl</code>, a command-line tool that is also an MCP server. Any Claude session or scheduled task can ask what you actually did, and write its feedback back into the app.</p>
+      </div>
+      <pre><span class="c"># Registered by the installer</span>
+claude mcp add atlas -- atlasctl mcp
+
+<span class="c"># Tools</span>
+get_activity_summary  <span class="c">time, apps, focus</span>
+get_current_activity  <span class="c">right now</span>
+get_recent_checkins   <span class="c">earlier feedback</span>
+record_checkin        <span class="c">save a verdict</span>
+
+<span class="c"># Or from a terminal</span>
+atlasctl today
+atlasctl summary --from -3h --json</pre>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="eyebrow">Install</div>
+    <h2>Build it in a minute.</h2>
+    <p class="sub">Requires macOS 14+ and Xcode 16 or later. The script builds, signs with your Apple Development certificate when available, installs to ~/Applications, and registers the MCP server.</p>
+    <pre>git clone https://github.com/ZahinTapadar/atlas.git
+cd atlas
+./scripts/build-app.sh
+open ~/Applications/ATLAS.app</pre>
+  </section>
+
+  <footer>
+    <span>ATLAS · MIT License</span>
+    <span><a href="https://github.com/ZahinTapadar/atlas">GitHub</a> · <a href="https://github.com/ZahinTapadar/atlas#readme">Documentation</a> · <a href="https://github.com/ZahinTapadar/atlas/issues">Issues</a></span>
+  </footer>
+</div>
+</body>
+</html>

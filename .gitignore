@@ -9,3 +9,4 @@ DerivedData/
 *.sqlite-wal
 *.sqlite-shm
 .env
+.claude/
