@@ -79,7 +79,7 @@ struct DashboardView: View {
                 .font(.caption).foregroundStyle(.secondary)
             let queued = model.windows.filter { [.ready, .failed, .awaitingReview].contains($0.status) }
             if !queued.isEmpty {
-                Label("\(queued.count) window(s) queued\(model.hasAPIKey ? "" : " — add an API key in Settings")", systemImage: "tray.full")
+                Label("\(queued.count) window(s) queued\(model.agentReady ? "" : " — \(model.agentSetupHint)")", systemImage: "tray.full")
                     .font(.caption).foregroundStyle(.orange)
             }
         }

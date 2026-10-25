@@ -205,11 +205,35 @@ struct ClaudeSettings: View {
 
     var body: some View {
         Form {
-            Section("API") {
-                HStack {
-                    SecureField(model.hasAPIKey ? "Key stored in Keychain — enter to replace" : "Anthropic API key", text: $key)
-                    Button("Save") { model.setAPIKey(key); key = "" }.disabled(key.isEmpty)
-                    if model.hasAPIKey { Button("Remove", role: .destructive) { model.setAPIKey("") } }
+            Section("Connection") {
+                Picker("Run analyses with", selection: setting(model, \.agentBackend)) {
+                    ForEach(AgentBackend.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+                switch model.settings.agentBackend {
+                case .claudeSubscription:
+                    LabeledContent("Claude Code CLI", value: model.claudeCodePath ?? "Not found")
+                    LabeledContent("Sign-in", value: model.claudeCodeAuth.map {
+                        $0.isSubscription ? "Claude subscription ✓" : $0.loggedIn ? "\($0.method) — not a subscription" : "Not signed in"
+                    } ?? "Unknown")
+                    TextField("Custom CLI path (optional)", text: Binding(
+                        get: { model.settings.claudeExecutablePath ?? "" },
+                        set: { v in model.update { $0.claudeExecutablePath = v.isEmpty ? nil : v } }))
+                    HStack {
+                        Button("Check again") { Task { await model.refresh() } }
+                        Button("Copy sign-in command") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("claude auth login", forType: .string)
+                        }
+                    }
+                    Text("Uses your Claude plan's usage limits, not API credits. ATLAS strips API-key variables before launching Claude Code and refuses to run unless it is signed in with a Claude subscription, so it never bills an API key by accident. Each analysis is one tool-less `claude -p` call from an empty folder.")
+                        .font(.caption).foregroundStyle(.secondary)
+                case .anthropicAPI:
+                    HStack {
+                        SecureField(model.hasAPIKey ? "Key stored in Keychain — enter to replace" : "Anthropic API key", text: $key)
+                        Button("Save") { model.setAPIKey(key); key = "" }.disabled(key.isEmpty)
+                        if model.hasAPIKey { Button("Remove", role: .destructive) { model.setAPIKey("") } }
+                    }
+                    Text("Billed per token to your Anthropic Console account.").font(.caption).foregroundStyle(.secondary)
                 }
                 Toggle("Agent enabled", isOn: setting(model, \.agentEnabled))
                 Picker("Model", selection: setting(model, \.model)) {
@@ -243,8 +267,13 @@ struct ClaudeSettings: View {
                 let log = model.requestLog
                 let input = log.compactMap(\.inputTokens).reduce(0, +), output = log.compactMap(\.outputTokens).reduce(0, +)
                 let price = Self.prices[model.settings.model] ?? (4, 20)
-                Text("\(log.count) requests · \(input) input / \(output) output tokens · ≈ $\(String(format: "%.2f", Double(input) / 1e6 * price.0 + Double(output) / 1e6 * price.1)) at \(model.settings.model) list prices")
-                    .font(.callout)
+                if model.settings.agentBackend == .claudeSubscription {
+                    Text("\(log.count) requests · \(input) input / \(output) output tokens · counted against your Claude plan's usage limits")
+                        .font(.callout)
+                } else {
+                    Text("\(log.count) requests · \(input) input / \(output) output tokens · ≈ $\(String(format: "%.2f", Double(input) / 1e6 * price.0 + Double(output) / 1e6 * price.1)) at \(model.settings.model) list prices")
+                        .font(.callout)
+                }
                 ForEach(log.prefix(8)) { e in
                     Text("\(Fmt.dayTime.string(from: e.ts)) · \(e.model) · \(e.requestBytes / 1000) KB · \(e.outcome)").font(.caption.monospaced())
                 }

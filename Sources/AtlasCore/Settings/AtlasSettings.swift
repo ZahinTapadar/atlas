@@ -95,6 +95,10 @@ public struct AtlasSettings: Codable, Hashable, Sendable {
 
     // Agent
     public var agentEnabled = true
+    /// Subscription by default. The API backend is used only if the user selects it; never as a fallback.
+    public var agentBackend: AgentBackend = .claudeSubscription
+    /// Optional explicit path to the `claude` CLI (otherwise common install locations are searched).
+    public var claudeExecutablePath: String?
     public var model = "claude-opus-5-5"
     public var effort = "medium"
     public var maxTimelineEntries = 120

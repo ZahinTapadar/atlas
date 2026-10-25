@@ -49,6 +49,8 @@ final class AppModel {
     var calendarStatus: ConnectorStatus = .notAuthorized("Not checked")
     var agentBusy = false
     var hasAPIKey = false
+    var claudeCodeAuth: ClaudeCodeProvider.AuthStatus?
+    var claudeCodePath: String?
     var lastError: String?
     var startupError: String?
 
@@ -76,7 +78,14 @@ final class AppModel {
         let settings = AtlasSettings()
         self.settings = settings
         self.tracker = TrackerCore(store: store, settings: settings, rules: [])
-        let provider = ClaudeProvider(secrets: KeychainStore())
+        // Re-read the backend choice per analysis so a settings change takes effect without a restart.
+        let provider = BackendSelector { [store] in
+            let s = (try? await store.loadSettings()) ?? AtlasSettings()
+            switch s.agentBackend {
+            case .claudeSubscription: return ClaudeCodeProvider(executablePath: s.claudeExecutablePath)
+            case .anthropicAPI: return ClaudeProvider(secrets: KeychainStore())
+            }
+        }
         let ek = eventKit
         self.coordinator = AnalysisCoordinator(store: store, provider: provider, connectors: [ek],
                                                health: { await AppModel.healthNotesForAgent(ek) })
@@ -236,6 +245,11 @@ final class AppModel {
         current = await tracker.currentSnapshot(at: now)
         calendarStatus = await eventKit.status()
         hasAPIKey = !(secrets.read(ClaudeProvider.apiKeyAccount) ?? "").isEmpty
+        if settings.agentBackend == .claudeSubscription {
+            let cc = ClaudeCodeProvider(executablePath: settings.claudeExecutablePath)
+            claudeCodePath = ClaudeCodeProvider.locateExecutable(override: settings.claudeExecutablePath)
+            claudeCodeAuth = await cc.authStatus()
+        }
         health = await computeHealth()
     }
 
@@ -254,8 +268,18 @@ final class AppModel {
         h.append(HealthItem(name: "Safari", level: settings.browserAutomationEnabled ? .ok : .off,
                             detail: settings.browserAutomationEnabled ? "Automation enabled" : "Not tracked (enable in Settings → Browser)"))
         h.append(HealthItem(name: "Calendar", level: calendarStatus.isConnected ? .ok : .degraded, detail: calendarStatus.label))
-        h.append(HealthItem(name: "Claude API", level: hasAPIKey ? .ok : .degraded,
-                            detail: hasAPIKey ? "Key in Keychain" : "No API key — analyses will queue"))
+        switch settings.agentBackend {
+        case .claudeSubscription:
+            let auth = claudeCodeAuth
+            let detail = claudeCodePath == nil ? "Claude Code CLI not found — analyses will queue"
+                : auth?.isSubscription == true ? "Claude Code signed in with your subscription"
+                : auth?.loggedIn == true ? "Signed in with \(auth!.method), not a subscription — analyses will queue"
+                : "Not signed in — run `claude auth login`"
+            h.append(HealthItem(name: "Claude", level: auth?.isSubscription == true ? .ok : .degraded, detail: detail))
+        case .anthropicAPI:
+            h.append(HealthItem(name: "Claude API", level: hasAPIKey ? .ok : .degraded,
+                                detail: hasAPIKey ? "Key in Keychain (billed per use)" : "No API key — analyses will queue"))
+        }
         return h
     }
 
@@ -475,6 +499,17 @@ final class AppModel {
             if e.state.isEngaged && e.classification.isUncertain { r.uncertain += e.duration }
         }
         return r
+    }
+
+    /// Whether the selected agent backend can run right now.
+    var agentReady: Bool {
+        settings.agentBackend == .claudeSubscription ? (claudeCodeAuth?.isSubscription ?? false) : hasAPIKey
+    }
+
+    var agentSetupHint: String {
+        settings.agentBackend == .claudeSubscription
+            ? "sign in to Claude Code with your Claude subscription (`claude auth login`)"
+            : "add an Anthropic API key in Settings → Claude"
     }
 
     var awakeRemaining: TimeInterval {

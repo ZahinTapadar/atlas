@@ -70,7 +70,7 @@ struct AgentView: View {
                 } else if w.status == .skipped {
                     Text("Skipped: too little awake time to analyze meaningfully.").foregroundStyle(.secondary)
                 } else {
-                    Text(model.hasAPIKey ? "Not analyzed yet." : "Not analyzed yet — add an Anthropic API key in Settings → Claude. Activity is kept locally until then.")
+                    Text(model.agentReady ? "Not analyzed yet." : "Not analyzed yet — \(model.agentSetupHint). Activity is kept locally until then.")
                         .foregroundStyle(.secondary)
                 }
             }

@@ -2,11 +2,11 @@
 
 A local-first macOS activity tracker (**System A**) and an event-driven Claude scheduling agent (**System B**).
 The tracker records how you spend time on your Mac. After every N hours of *awake* time it sends one minimized,
-privacy-filtered summary to Claude. Claude compares what you planned with what you did and proposes a realistic
+privacy-filtered summary to Claude, through **your Claude subscription via Claude Code**. No API credits are needed. Claude compares what you planned with what you did and proposes a realistic
 next block. Calendar changes go through an explicit authorization policy.
 
 - Swift 6 / SwiftUI, macOS 14+, native on Apple Silicon. No third-party dependencies (system SQLite, URLSession, EventKit).
-- 51 deterministic XCTest cases cover the 27 acceptance scenarios and more: `swift test`.
+- 56 deterministic XCTest cases (plus one opt-in live check) cover the 27 acceptance scenarios and more: `swift test`.
 
 ## Build & run
 
@@ -17,8 +17,9 @@ open build/ATLAS.app
 ```
 
 Use the bundled app, not `swift run`, for daily use: notifications, Calendar prompts and launch-at-login need a real bundle.
-Then, in Settings:
-1. **Claude** → paste an Anthropic API key. It is stored in the login Keychain only.
+Then:
+1. Install [Claude Code](https://code.claude.com/docs) and run `claude auth login`, choosing your Claude (Pro/Max)
+   account rather than Console billing. **Settings → Claude** should show "Claude subscription ✓".
 2. **General** → grant Accessibility (optional) so window titles can be read.
 3. **Calendar** → connect Apple Calendar and choose an authorization level.
 4. **Browser** → install the extension (below) and/or enable Safari automation.
@@ -79,8 +80,8 @@ It runs only when a window is ready, when you press **Analyze Now**, or when you
    Titles of sensitive items are dropped and the package is shrunk to the byte budget.
 2. The payload is frozen on the window, so retries send identical bytes. With *Review before sending* on, it waits
    for your approval. **Agent → "What was sent"** shows the exact JSON.
-3. The request goes to `POST /v1/messages` with `claude-opus-5-5` (configurable), structured outputs
-   (`output_config.format` JSON schema), a cached static system prompt, and server-side refusal fallbacks.
+3. The request goes to the selected backend (see **Claude backend** below) with `claude-opus-5-5` (configurable),
+   ATLAS's JSON schema for structured output, and a static system prompt.
 4. The validator drops unknown tasks, downgrades unsupported completion claims, strips times that overlap fixed
    commitments or exceed free time, and refuses moves of shared or foreign events.
 5. **Retry safety:** the validated result is persisted *before* actions are derived. Actions use stable idempotency
@@ -89,6 +90,29 @@ It runs only when a window is ready, when you press **Analyze Now**, or when you
    event before writing.
 6. Failures back off exponentially (60 s × 2ⁿ, capped at 6 h, ±10% jitter). Permanent errors such as a bad key wait
    at least 6 h. A missing key leaves the window queued without using up retries.
+
+### Claude backend
+**Default: Claude subscription via Claude Code.** There is no Swift Agent SDK, so ATLAS runs the Claude Code CLI
+(the runtime the Agent SDK wraps) once per window:
+
+```
+claude -p --output-format json --json-schema <schema> --system-prompt <prompt> --model <model> --effort <level>
+       --tools "" --strict-mcp-config --safe-mode --disable-slash-commands --no-session-persistence
+```
+
+- The activity package goes over stdin. The call runs from an empty temporary folder, with no tools, MCP servers,
+  hooks, plugins, CLAUDE.md or saved session.
+- **It never bills an API key by accident.** `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, Bedrock/Vertex/Foundry
+  switches and similar variables are removed from the child environment. Before every run ATLAS checks
+  `claude auth status` and refuses unless the CLI is signed in through claude.ai. `--bare` is never used, because it
+  forces API-key auth.
+- Analyses count against your plan's usage limits, which Claude and Claude Code share. Hitting the limit is treated
+  as a temporary failure: the window stays queued and retries with backoff.
+- **Optional: Anthropic API key** (Settings → Claude → "Run analyses with"). It is billed per token and used only if
+  you select it. The two backends never fall back to each other.
+
+Run `ATLAS_LIVE_CLAUDE=1 swift test --filter LiveClaudeCodeTests` for a real end-to-end check (one small analysis
+on your plan). Normal test runs use a fake CLI.
 
 ### Authorization
 | Level | Behavior |
