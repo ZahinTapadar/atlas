@@ -97,12 +97,12 @@ struct MCPServer {
         ],
         [
             "name": "send_email_summary",
-            "description": "Email this check-in to the user. The recipient is fixed in ATLAS settings and cannot be changed here.",
+            "description": "Email this check-in to the user (call it after record_checkin: the email is designed from the recorded check-in, with an animated day ribbon, to-dos and time by category; `body` is the plain-text version). The recipient is fixed in ATLAS settings and cannot be changed here.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
                     "subject": ["type": "string"],
-                    "body": ["type": "string", "description": "Plain text."],
+                    "body": ["type": "string", "description": "The check-in markdown (plain-text fallback)."],
                 ],
                 "required": ["subject", "body"],
                 "additionalProperties": false,
@@ -181,15 +181,10 @@ struct MCPServer {
             try Integrations.addThings(title: String(title.prefix(200)), notes: a["notes"] as? String, when: a["when"] as? String ?? "today")
             return "Added to Things."
         case "send_email_summary":
-            let store = try readStore()
-            guard let to = try await store.preference(AtlasStore.notifyEmailKey), Integrations.isPlausibleEmail(to) else {
-                throw Integrations.Failure(message: "No notification email set. Run: atlasctl set-email you@example.com")
-            }
             guard let subject = a["subject"] as? String, let body = a["body"] as? String else {
                 throw Integrations.Failure(message: "subject and body are required")
             }
-            try Integrations.sendEmail(to: to, subject: String(subject.prefix(200)), body: String(body.prefix(20_000)))
-            return "Emailed."
+            return try await CheckinMail.deliver(subject: String(subject.prefix(200)), body: String(body.prefix(20_000)))
         default:
             throw NSError(domain: "atlas", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unknown tool \(name)"])
         }

@@ -102,9 +102,49 @@ case "things":
 
 case "test-email":
     do {
+        let latest = try await readStore().checkins(limit: 1).first
+        print(try await CheckinMail.deliver(subject: "ATLAS · test · \(latest.map { RichEmail.verdictTitle($0.verdict) } ?? "check-in")",
+                                            body: latest?.body ?? "Check-in emails from ATLAS will arrive like this."))
+    } catch { fail(error.localizedDescription) }
+
+case "preview-email":
+    // Writes the designed email and its GIF to a folder, for a look in a browser.
+    do {
+        let dir = URL(fileURLWithPath: args.dropFirst().first ?? FileManager.default.currentDirectoryPath)
+        let store = try readStore()
+        let latest = try await store.checkins(limit: 1).first
+        let c = RichEmail.build(checkin: latest, fallbackSubject: "ATLAS preview", fallbackBody: latest?.body ?? "",
+                                events: try await store.events(from: Calendar.current.startOfDay(for: Date()), to: Date()),
+                                reasons: (try? await store.todoReasons(since: AtlasStore.dayKey())) ?? [])
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try c.html.replacingOccurrences(of: "cid:day@atlas", with: "day.gif").write(to: dir.appendingPathComponent("email.html"), atomically: true, encoding: .utf8)
+        if let gif = c.gif { try gif.write(to: dir.appendingPathComponent("day.gif")) }
+        print(dir.appendingPathComponent("email.html").path)
+    } catch { fail(error.localizedDescription) }
+
+case "email-setup":
+    // Stores an app password for the check-in address in the login Keychain, then sends a designed test email.
+    do {
         guard let to = try await readStore().preference(AtlasStore.notifyEmailKey) else { fail("run atlasctl set-email first") }
-        try Integrations.sendEmail(to: to, subject: "ATLAS test email", body: "Check-in emails from ATLAS will arrive like this.")
-        print("Sent to \(to)")
+        guard SMTPMail.server(for: to) != nil else { fail("HTML email currently supports Gmail and iCloud addresses; \(to) will keep getting plain text.") }
+        print("""
+        ATLAS sends designed check-in emails through your own mail server, signed in with an app password.
+        \(to.hasSuffix("gmail.com") || to.hasSuffix("googlemail.com")
+            ? "Create one at https://myaccount.google.com/apppasswords (needs 2-Step Verification), name it ATLAS."
+            : "Create one at https://account.apple.com → Sign-In and Security → App-Specific Passwords.")
+        Paste it below. It goes straight into your login Keychain as "ATLAS SMTP"; nothing is printed or saved elsewhere.
+
+        """)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        p.arguments = ["add-generic-password", "-U", "-s", SMTPMail.keychainService, "-a", to, "-l", "ATLAS check-in email", "-w"]
+        p.standardInput = FileHandle.standardInput
+        p.standardOutput = FileHandle.standardOutput
+        p.standardError = FileHandle.standardError
+        try p.run(); p.waitUntilExit()
+        guard p.terminationStatus == 0 else { fail("The Keychain didn't save the password.") }
+        let latest = try await readStore().checkins(limit: 1).first
+        print(try await CheckinMail.deliver(subject: "ATLAS · your check-ins now look like this", body: latest?.body ?? "ATLAS is set up."))
     } catch { fail(error.localizedDescription) }
 
 case "mcp":
@@ -119,7 +159,9 @@ case "-h", "--help", "help":
     atlasctl checkin --verdict on_track|mixed|off_track|insufficient_data [--source NAME] < feedback.txt
     atlasctl things                        today's Things to-dos
     atlasctl set-email you@example.com     where check-in emails go
-    atlasctl test-email
+    atlasctl test-email                    send the latest check-in as an email
+    atlasctl email-setup                   store an app password for designed HTML check-in emails
+    atlasctl preview-email [dir]           write the designed email to a folder
     atlasctl mcp
     """)
 
