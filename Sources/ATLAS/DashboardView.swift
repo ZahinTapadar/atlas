@@ -23,7 +23,9 @@ struct DashboardView: View {
 
                 VerdictPanel(checkin: model.checkins.first) { goTo(.checkins) }
 
-                if let latest = model.checkins.first(where: { Calendar.current.isDateInToday($0.ts) && !$0.todos.isEmpty }) {
+                if model.thingsProblem == "" {
+                    ThingsToday()
+                } else if let latest = model.checkins.first(where: { Calendar.current.isDateInToday($0.ts) && !$0.todos.isEmpty }) {
                     TodayTodos(checkin: latest)
                 }
 
@@ -45,6 +47,13 @@ struct DashboardView: View {
         }
         .scrollIndicators(.never)
         .task { await model.refresh() }
+        .task {
+            // Things changes outside ATLAS; keep the list current while Today is open.
+            while !Task.isCancelled {
+                await model.refreshThings()
+                try? await Task.sleep(for: .seconds(45))
+            }
+        }
     }
 }
 

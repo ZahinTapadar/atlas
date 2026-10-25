@@ -63,7 +63,7 @@ struct MCPServer {
         ],
         [
             "name": "get_things_today",
-            "description": "The user's Things 3 Today list (including overdue items): id, title, status, notes, due date, tags, project. This is what they intended to do today.",
+            "description": "The user's Things 3 Today list (including overdue items): id, title, status, notes, due date, project, the to-dos inside projects (children) and checklist items. `reason` is the user's own explanation, written in ATLAS, for not doing an item today: take it into account fairly and don't repeat advice it already answers.",
             "inputSchema": ["type": "object", "properties": [String: Any](), "additionalProperties": false],
             "annotations": ["readOnlyHint": true],
         ],
@@ -167,7 +167,7 @@ struct MCPServer {
             try await store.saveCheckin(.init(source: "scheduled-checkin", verdict: a["verdict"] as? String, body: feedback, todos: todos))
             return "Saved to ATLAS (\(todos.count) to-dos)."
         case "get_things_today":
-            return String(decoding: try JSONEncoder().encode(try Integrations.thingsToday()), as: UTF8.self)
+            return String(decoding: try JSONEncoder().encode(try await Integrations.thingsToday()), as: UTF8.self)
         case "update_things_todo":
             guard let id = a["id"] as? String, let action = Integrations.ThingsAction(rawValue: a["action"] as? String ?? "") else {
                 throw Integrations.Failure(message: "id and a valid action are required")

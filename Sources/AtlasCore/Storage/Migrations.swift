@@ -166,6 +166,17 @@ enum Migrations {
         -- Per check-in to-do status (mirrors Things: what was supposed to happen and what did).
         ALTER TABLE checkin ADD COLUMN todos TEXT;
         """),
+        (4, """
+        -- The user's own reason for not doing a planned to-do on a given day (read by check-ins).
+        CREATE TABLE todo_reason (
+            todo_key TEXT NOT NULL,
+            day TEXT NOT NULL,
+            title TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            ts REAL NOT NULL,
+            PRIMARY KEY (todo_key, day)
+        );
+        """),
     ]
 
     static var latestVersion: Int { all.last?.version ?? 0 }

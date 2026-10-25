@@ -51,6 +51,10 @@ final class AppModel {
     var hasAPIKey = false
     var checkins: [AtlasStore.Checkin] = []
     var notifyEmail = ""
+    var thingsItems: [Things.Item] = []
+    /// nil until the first read; otherwise why Things could not be read ("" when it could).
+    var thingsProblem: String?
+    var todoReasons: [AtlasStore.TodoReason] = []
     var showOnboarding = false
     var permissions = PermissionStatus()
     private var permissionTimer: Timer?
@@ -373,6 +377,52 @@ final class AppModel {
             }
         }
         await refresh()
+    }
+
+    // MARK: - Things
+
+    /// Re-reads Things' Today list (with checklists and project contents) and today's recorded reasons.
+    func refreshThings() async {
+        todoReasons = (try? await store.todoReasons(since: AtlasStore.dayKey())) ?? []
+        if DemoData.isEnabled {
+            thingsItems = DemoData.thingsItems
+            thingsProblem = ""
+            return
+        }
+        do {
+            thingsItems = try await Task.detached(priority: .utility) { try Things.today() }.value
+            thingsProblem = ""
+        } catch {
+            thingsProblem = error.localizedDescription
+        }
+    }
+
+    func setThingsDone(_ id: String, _ done: Bool) async {
+        func apply(_ items: inout [Things.Item]) {
+            for i in items.indices {
+                if items[i].id == id { items[i].status = done ? "completed" : "open" }
+                for j in items[i].children.indices where items[i].children[j].id == id { items[i].children[j].done = done }
+            }
+        }
+        apply(&thingsItems)
+        if DemoData.isEnabled { return }
+        do {
+            try await Task.detached { try Things.setDone(id: id, done) }.value
+        } catch {
+            lastError = "Things: \(error.localizedDescription)"
+        }
+        await refreshThings()
+    }
+
+    func reason(for item: Things.Item) -> String? {
+        todoReasons.first { $0.key == item.id || $0.title == item.title }?.reason
+    }
+
+    func setReason(for item: Things.Item, _ text: String) async {
+        do {
+            try await store.setTodoReason(key: item.id, title: item.title, reason: text)
+            todoReasons = try await store.todoReasons(since: AtlasStore.dayKey())
+        } catch { lastError = "Could not save the reason: \(error)" }
     }
 
     // MARK: - Refresh

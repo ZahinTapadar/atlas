@@ -55,7 +55,30 @@ enum DemoData {
          ("mixed", "**Mixed: discussion drafted, then 30m of video crept in.**\n- 45m of writing\n- Entertainment video 15:20–15:50\n**Next:** Proofread the lab and submit before 18:00.")],
     ]
 
+    /// A synthetic Things Today list: a checklist to-do, a project with its to-dos, and plain items.
+    static let thingsItems: [Things.Item] = [
+        .init(id: "demo-chem7", title: "Organic Chemistry: read Chapter 7", status: "completed", project: "Chemistry",
+              checklist: [.init(title: "7.1 Nucleophilic substitution", done: true), .init(title: "7.2 SN1 vs SN2", done: true),
+                          .init(title: "7.3 Elimination reactions", done: true), .init(title: "Margin notes into Notion", done: true)]),
+        .init(id: "demo-lab4", title: "Physics lab 4: analysis", notes: "Due Friday. Use the second data run; the first had a loose clamp.",
+              due: "2026-10-30", project: "Physics",
+              checklist: [.init(title: "Clean the data runs", done: true), .init(title: "Curve fit with numpy.polyfit", done: true),
+                          .init(title: "Error bars and residuals", done: false), .init(title: "Discussion section", done: false)]),
+        .init(id: "demo-revision", title: "Exam revision week", isProject: true,
+              children: [.init(id: "demo-r1", title: "Mon · Kinematics and units", done: true),
+                         .init(id: "demo-r2", title: "Tue · Organic mechanisms", done: true),
+                         .init(id: "demo-r3", title: "Wed · Problem set 3", done: false),
+                         .init(id: "demo-r4", title: "Thu · Past paper, timed", done: false),
+                         .init(id: "demo-r5", title: "Fri · Mistakes log review", done: false)]),
+        .init(id: "demo-ps3", title: "Problem set 3 (chemistry)", project: "Chemistry",
+              checklist: [.init(title: "Questions 1–4", done: false), .init(title: "Questions 5–8", done: false)]),
+        .init(id: "demo-habit", title: "Habit app: streak logic", status: "completed", project: "Side projects"),
+        .init(id: "demo-review7", title: "Review Chapter 7 before tutorial", project: "Chemistry"),
+    ]
+
     static func seed(into store: AtlasStore, now: Date = Date()) async {
+        try? await store.setTodoReason(key: "demo-ps3", title: "Problem set 3 (chemistry)",
+                                       reason: "Lab partner needed the analysis first, so I swapped it with the physics lab.")
         let day: [Seg] = [
             Seg(minutes: 48, app: "Preview", bundle: "com.apple.Preview", title: "Organic Chemistry — Chapter 7.pdf", category: .reading),
             Seg(minutes: 17, app: "Google Chrome", bundle: "com.google.Chrome", title: "SN1 vs SN2 explained", domain: "youtube.com", category: .educationalVideo, confidence: 0.7),

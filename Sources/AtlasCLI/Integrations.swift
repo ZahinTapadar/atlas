@@ -33,31 +33,14 @@ enum Integrations {
 
     // MARK: Things 3
 
-    struct ThingsTodo: Codable {
-        var id: String
-        var title: String
-        var status: String
-        var notes: String
-        var due: String?
-        var tags: [String]
-        var project: String?
-    }
-
-    /// To-dos in Things' Today list (including overdue items Things shows there).
-    static func thingsToday() throws -> [ThingsTodo] {
-        let js = """
-        function run(argv) {
-          const T = Application('Things3');
-          const iso = d => { try { return d ? d.toISOString().slice(0, 10) : null } catch (e) { return null } };
-          return JSON.stringify(T.lists.byName('Today').toDos().map(t => {
-            let project = null; try { const p = t.project(); project = p ? p.name() : null } catch (e) {}
-            return { id: t.id(), title: t.name(), status: t.status(), notes: (t.notes() || '').slice(0, 400),
-                     due: iso(t.dueDate()), tags: (t.tagNames() || '').split(', ').filter(x => x), project: project };
-          }));
+    /// Things' Today list with project contents, checklists and any reason the user recorded in ATLAS today.
+    static func thingsToday() async throws -> [Things.Item] {
+        var items = try Things.today()
+        if let store = try? AtlasStore(path: AtlasStore.defaultPath, readOnly: true),
+           let reasons = try? await store.todoReasons(since: AtlasStore.dayKey()) {
+            for i in items.indices { items[i].reason = reasons.first { $0.key == items[i].id || $0.title == items[i].title }?.reason }
         }
-        """
-        let raw = try osascript(js: js)
-        return try JSONDecoder().decode([ThingsTodo].self, from: Data(raw.utf8))
+        return items
     }
 
     enum ThingsAction: String { case complete, reopen, appendNote = "append_note" }

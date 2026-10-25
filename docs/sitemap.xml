@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://atlasmac.web.app/</loc>
+    <lastmod>2026-10-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image><image:loc>https://atlasmac.web.app/assets/og.jpg</image:loc></image:image>
+    <video:video>
+      <video:thumbnail_loc>https://atlasmac.web.app/assets/atlas-promo-poster.jpg</video:thumbnail_loc>
+      <video:title>ATLAS product film</video:title>
+      <video:description>A 48-second tour of ATLAS, a free local-first time tracker for macOS with Claude check-ins.</video:description>
+      <video:content_loc>https://atlasmac.web.app/assets/atlas-promo.mp4</video:content_loc>
+      <video:duration>48</video:duration>
+    </video:video>
+  </url>
+</urlset>

@@ -486,6 +486,39 @@ public actor AtlasStore {
 
     public static let notifyEmailKey = "notify_email"
 
+    // MARK: - To-do reasons
+
+    public struct TodoReason: Codable, Sendable, Hashable {
+        public var key: String
+        public var day: String
+        public var title: String
+        public var reason: String
+        public var ts: Date
+    }
+
+    public static func dayKey(_ d: Date = Date()) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: d)
+    }
+
+    /// Saves (or, with an empty reason, clears) why a to-do was not done on `day`. `key` is the Things id when known.
+    public func setTodoReason(key: String, title: String, reason: String, day: String = AtlasStore.dayKey()) throws {
+        let r = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if r.isEmpty {
+            try db.run("DELETE FROM todo_reason WHERE todo_key = ? AND day = ?", key, day)
+        } else {
+            try db.run("INSERT OR REPLACE INTO todo_reason (todo_key, day, title, reason, ts) VALUES (?,?,?,?,?)",
+                       key, day, String(title.prefix(300)), String(r.prefix(1000)), Date())
+        }
+    }
+
+    public func todoReasons(since day: String) throws -> [TodoReason] {
+        try db.query("SELECT * FROM todo_reason WHERE day >= ? ORDER BY day DESC, ts DESC", [day]) { r in
+            TodoReason(key: r.string("todo_key") ?? "", day: r.string("day") ?? "", title: r.string("title") ?? "",
+                       reason: r.string("reason") ?? "", ts: r.date("ts") ?? Date())
+        }
+    }
+
     // MARK: - Tracker heartbeat
 
     public func heartbeat(at: Date, clean: Bool = false) throws {

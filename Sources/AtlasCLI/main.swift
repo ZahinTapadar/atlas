@@ -97,7 +97,7 @@ case "set-email":
 
 case "things":
     do {
-        for t in try Integrations.thingsToday() { print("[\(t.status)] \(t.title)  (\(t.id))") }
+        for t in try await Integrations.thingsToday() { print("[\(t.status)] \(t.title)  (\(t.id))") }
     } catch { fail(error.localizedDescription) }
 
 case "test-email":

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://zahintapadar.github.io/atlas/">Website</a> ·
+  <a href="https://atlasmac.web.app/">Website</a> ·
   <a href="#build--run">Install</a> ·
   <a href="#claude-check-ins-the-part-after-tracking">Claude check-ins</a> ·
   <a href="#privacy--data">Privacy</a>
@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://zahintapadar.github.io/atlas/#film"><img src="docs/assets/atlas-promo-poster.jpg" width="820" alt="Watch the 48-second ATLAS film"></a><br>
+  <a href="https://atlasmac.web.app/#film"><img src="docs/assets/atlas-promo-poster.jpg" width="820" alt="Watch the 48-second ATLAS film"></a><br>
   <sub>Watch the 48-second film · <a href="docs/assets/atlas-promo.mp4">MP4</a></sub>
 </p>
 

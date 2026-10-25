@@ -306,7 +306,7 @@ export const Outro: React.FC = () => {
         <Img src={staticFile('icon.png')} style={{ width: 180, transform: `scale(${icon})` }} />
         <Rise text="Track honestly. Act on it." size={104} start={14} />
         <div style={{ fontFamily: MONO, fontSize: 32, color: C.ink2, opacity: url, transform: `translateY(${(1 - url) * 12}px)`, padding: '14px 28px', borderRadius: 999, border: `1.5px solid ${C.hairline}` }}>
-          zahintapadar.github.io/atlas
+          atlasmac.web.app
         </div>
         <div style={{ position: 'absolute', bottom: 60, fontSize: 20, color: C.ink3, opacity: url }}>Free for macOS · Sample data shown</div>
       </AbsoluteFill>

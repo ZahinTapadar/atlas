@@ -1,0 +1,75 @@
+{
+  "logFilename": "polyrecorder.log",
+  "polyrecorderVersion": "1.9.1",
+  "recorders": [
+    {
+      "configuration": {},
+      "cursorImagesFolder": "cursors",
+      "cursorsInfoFile": "cursors.json",
+      "id": "channel-0-cursor",
+      "type": "cursor"
+    },
+    {
+      "configuration": {
+        "captureKeyStrokes": true
+      },
+      "id": "channel-0-input",
+      "sessions": [
+        {
+          "durationMs": 48400,
+          "keyStrokesFilename": "keystrokes-0.json",
+          "mouseClicksFilename": "mouseclicks-0.json",
+          "mouseMovesFilename": "mousemoves-0.json",
+          "processTimeEndMs": 48400,
+          "processTimeStartMs": 0,
+          "unixEndMs": 1792943052736,
+          "unixStartMs": 1792943004336
+        }
+      ],
+      "type": "input"
+    },
+    {
+      "configuration": {
+        "cropRect": {
+          "height": 1920,
+          "width": 1080,
+          "x": 0,
+          "y": 0,
+          "yAxis": "topBasedIncreasingDownwards"
+        },
+        "displayId": 1,
+        "excludedWindowIds": [],
+        "excludeFinderDesktopIcons": false
+      },
+      "id": "channel-1-display",
+      "sessions": [
+        {
+          "bounds": {
+            "height": 1080,
+            "width": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "displayRefreshRate": 60,
+          "durationMs": 48400,
+          "outputFilename": "channel-1-display-0.mp4",
+          "processTimeEndMs": 48400,
+          "processTimeStartMs": 0,
+          "recordingScale": 0.5,
+          "unixEndMs": 1792943052736,
+          "unixStartMs": 1792943004336
+        }
+      ],
+      "type": "display"
+    }
+  ],
+  "sessions": [
+    {
+      "durationMs": 48400,
+      "processTimeEndMs": 48400,
+      "processTimeStartMs": 0,
+      "unixEndMs": 1792943052736,
+      "unixStartMs": 1792943004336
+    }
+  ]
+}

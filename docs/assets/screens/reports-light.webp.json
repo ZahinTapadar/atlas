@@ -1,4 +1,4 @@
 {
-  "prompt": "Origin: screenshot of the ATLAS macOS app (reports screen, light appearance), active window, captured with screencapture -o from build/ATLAS.app launched with --demo (synthetic sample data, no real user activity), 1440x900 window at 2x, converted with cwebp -q 88.",
-  "createdAt": "2026-10-25T12:23:58.371Z"
+  "prompt": "Origin: screenshot of the ATLAS macOS app (reports screen, light appearance), active window, captured with screencapture -o from ~/Applications/ATLAS.app launched with --demo (synthetic sample data and a synthetic Things list, no real user activity), 1440x900 window at 2x, converted with cwebp -q 88.",
+  "createdAt": "2026-10-25T16:10:36.000Z"
 }
