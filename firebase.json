@@ -3,10 +3,30 @@
     "public": "docs",
     "cleanUrls": true,
     "trailingSlash": false,
-    "ignore": ["**/*.json", "**/.*"],
+    "ignore": [
+      "**/*.json",
+      "**/.*",
+      "**/*.screenstudio/**"
+    ],
     "headers": [
-      { "source": "**/*.@(webp|png|jpg|svg|mp4|ico)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }] },
-      { "source": "**", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] }
+      {
+        "source": "**/*.@(webp|png|jpg|svg|mp4|ico)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
+        ]
+      }
     ]
   }
 }

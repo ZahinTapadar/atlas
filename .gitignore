@@ -15,3 +15,7 @@ DerivedData/
 .impeccable/build/
 .impeccable/config.local.json
 .impeccable/tmp/
+
+# Screen Studio projects and Firebase deploy cache stay local
+*.screenstudio/
+.firebase/
