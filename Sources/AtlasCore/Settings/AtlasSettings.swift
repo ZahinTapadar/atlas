@@ -99,6 +99,8 @@ public struct AtlasSettings: Codable, Hashable, Sendable {
     /// check-ins (via the atlas MCP server) provide the feedback. "Analyze Now" always works.
     public var automaticWindowAnalysis = false
     public var onboardingCompleted = false
+    /// Check GitHub for a newer release on launch and daily (release builds only).
+    public var checkForUpdates = true
     public var accessibilityPromptShown = false
     /// Subscription by default. The API backend is used only if the user selects it; never as a fallback.
     public var agentBackend: AgentBackend = .claudeSubscription

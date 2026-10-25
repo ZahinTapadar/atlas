@@ -21,6 +21,10 @@ struct DashboardView: View {
                     }
                 }
 
+                if !DemoData.isEnabled && model.setupStepsRemaining > 0 {
+                    SetupNudge(remaining: model.setupStepsRemaining) { model.showOnboarding = true }
+                }
+
                 VerdictPanel(checkin: model.checkins.first) { goTo(.checkins) }
 
                 if model.thingsProblem == "" {
@@ -54,6 +58,28 @@ struct DashboardView: View {
                 try? await Task.sleep(for: .seconds(45))
             }
         }
+    }
+}
+
+/// Shown on Today until the essential setup steps are done.
+struct SetupNudge: View {
+    var remaining: Int
+    var open: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checklist").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.mixed)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Finish setting up check-ins").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Theme.ink)
+                Text("\(remaining) step\(remaining == 1 ? "" : "s") left: Claude, your check-in schedule and where to send them.")
+                    .font(.system(size: 12.5)).foregroundStyle(Theme.inkSecondary)
+            }
+            Spacer()
+            Button("Open setup", action: open).buttonStyle(InkButtonStyle(prominent: true))
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(Theme.mixed.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.mixed.opacity(0.25)))
     }
 }
 

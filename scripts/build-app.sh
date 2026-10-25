@@ -23,6 +23,8 @@ if [[ -n "${VERSION:-}" ]]; then
   plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
   plutil -replace CFBundleVersion -string "${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}" "$APP/Contents/Info.plist"
 fi
+# Release builds update themselves from GitHub; builds from source don't.
+[[ -n "${CHANNEL:-}" ]] && plutil -replace ATLASUpdateChannel -string "$CHANNEL" "$APP/Contents/Info.plist"
 cp Resources/ATLAS.icns "$APP/Contents/Resources/ATLAS.icns"
 cp -R Extensions "$APP/Contents/Resources/Extensions"
 

@@ -62,6 +62,15 @@ final class AppModel {
     var claudeCodePath: String?
     /// Whether Claude has the `atlas` MCP server pointing at this copy of ATLAS (nil until checked).
     var mcpConnected: Bool?
+    var checkinTaskInstalled = false
+    var availableUpdate: Updater.Release?
+    var updateStatus: String?
+    var updateBusy = false
+    var showUpdate = false
+    private var updateTimer: Timer?
+    var emailHTMLReady = false
+    var emailSetupMessage: String?
+    var emailSetupBusy = false
     var lastError: String?
     var startupError: String?
 
@@ -117,6 +126,12 @@ final class AppModel {
         settings = s
         await refresh()
         DemoData.prepareWindow()
+        scheduleUpdateChecks()
+        if CommandLine.arguments.contains("--setup") {
+            await refreshPermissions()
+            await refreshSetup()
+            showOnboarding = true
+        }
     }
 
     nonisolated static func healthNotesForAgent(_ ek: EventKitConnector) async -> [String] {
@@ -147,6 +162,8 @@ final class AppModel {
         _ = try? await tracker.reclassify(from: Date().addingTimeInterval(-14 * 86400), to: Date())
         if settings.trackingEnabled { await startTracking() }
         await refreshPermissions()
+        await refreshSetup()
+        scheduleUpdateChecks()
         if !settings.onboardingCompleted || !permissions.accessibility {
             showOnboarding = true
             // Ask up front, but only once ever: repeated requests queue duplicate system dialogs.
@@ -379,6 +396,129 @@ final class AppModel {
             }
         }
         await refresh()
+    }
+
+    // MARK: - Updates
+
+    /// Checks GitHub for a newer release. Quiet unless `userInitiated` or a newer version exists.
+    func checkForUpdates(userInitiated: Bool = false) async {
+        guard Updater.isReleaseBuild else {
+            if userInitiated { updateStatus = "This copy was built from source, so it updates from your checkout (git pull, then scripts/build-app.sh)." }
+            return
+        }
+        if userInitiated { updateStatus = "Checking…" }
+        do {
+            let r = try await Updater.latest()
+            if Updater.isNewer(r.version, than: Updater.currentVersion) {
+                availableUpdate = r
+                updateStatus = "ATLAS \(r.version) is available."
+                if userInitiated { showUpdate = true }
+            } else {
+                availableUpdate = nil
+                if userInitiated { updateStatus = "You're up to date (\(Updater.currentVersion))." }
+            }
+        } catch {
+            if userInitiated { updateStatus = error.localizedDescription }
+        }
+    }
+
+    func scheduleUpdateChecks() {
+        // `--demo --check-updates [--install-update]` exercises the updater on a throwaway copy (end-to-end test).
+        if DemoData.isEnabled && CommandLine.arguments.contains("--check-updates") {
+            Task {
+                await checkForUpdates(userInitiated: true)
+                if CommandLine.arguments.contains("--install-update"), availableUpdate != nil { await installUpdate() }
+            }
+            return
+        }
+        guard !DemoData.isEnabled, settings.checkForUpdates else { return }
+        Task { try? await Task.sleep(for: .seconds(8)); await checkForUpdates() }
+        updateTimer?.invalidate()
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.settings.checkForUpdates else { return }
+                await self.checkForUpdates()
+            }
+        }
+    }
+
+    /// Downloads and verifies the update, then quits so it can be swapped in and reopened.
+    func installUpdate() async {
+        guard let r = availableUpdate else { return }
+        updateBusy = true
+        defer { updateBusy = false }
+        let app = Bundle.main.bundleURL
+        do {
+            let staged = try await Updater.stage(r, replacing: app) { msg in Task { @MainActor in self.updateStatus = msg } }
+            updateStatus = "Restarting into ATLAS \(r.version)…"
+            try Updater.installOnExit(staged: staged, replacing: app)
+            await stopTracking()
+            NSApp.terminate(nil)
+        } catch {
+            updateStatus = error.localizedDescription
+        }
+    }
+
+    // MARK: - Setup checklist
+
+    var thingsInstalled: Bool {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.culturedcode.ThingsMac") != nil
+    }
+
+    /// Essential steps still open: window titles, Claude connected, a check-in schedule, an email address.
+    var setupStepsRemaining: Int {
+        [permissions.accessibility, mcpConnected == true, checkinTaskInstalled, !notifyEmail.isEmpty].filter { !$0 }.count
+    }
+
+    func refreshSetup() async {
+        checkinTaskInstalled = CheckinTask.isInstalled()
+        let address = notifyEmail
+        emailHTMLReady = await Task.detached { MailAccount.isConfigured(address) }.value
+        await checkMCP()
+    }
+
+    /// Copies the request that makes Claude create the check-in task, and opens Claude.
+    func copyCheckinRequest() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(CheckinTask.setupRequest, forType: .string)
+    }
+
+    func openClaude() {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anthropic.claudefordesktop") {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(URL(string: "https://claude.ai/download")!)
+        }
+    }
+
+    /// Saves the address and (for Gmail/iCloud) the app password, then sends a designed test email.
+    /// A password that fails to send is removed again.
+    func setUpEmail(address: String, appPassword: String) async {
+        let to = address.trimmingCharacters(in: .whitespaces)
+        guard to.range(of: #"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$"#, options: .regularExpression) != nil else {
+            emailSetupMessage = "That doesn't look like an email address."; return
+        }
+        emailSetupBusy = true
+        defer { emailSetupBusy = false }
+        setNotifyEmail(to)
+        try? await store.setPreference(AtlasStore.notifyEmailKey, to)
+        if MailAccount.supportsHTML(to), !appPassword.isEmpty {
+            guard let pass = MailAccount.normalise(appPassword) else {
+                emailSetupMessage = "That doesn't look like an app password (16 letters for Gmail)."; return
+            }
+            do { try await Task.detached { try MailAccount.savePassword(pass, for: to) }.value } catch {
+                emailSetupMessage = error.localizedDescription; return
+            }
+        }
+        let cli = bundledCLI
+        let result = await Task.detached { Self.run(cli, ["test-email"]) }.value
+        if result.status == 0 {
+            emailSetupMessage = MailAccount.isConfigured(to) ? "Sent a designed test email to \(to)." : "Sent a plain-text test email to \(to) through Mail."
+        } else {
+            if !appPassword.isEmpty { MailAccount.deletePassword(for: to) }
+            emailSetupMessage = "Sending failed: \(result.text.trimmingCharacters(in: .whitespacesAndNewlines))"
+        }
+        await refreshSetup()
     }
 
     // MARK: - Claude MCP

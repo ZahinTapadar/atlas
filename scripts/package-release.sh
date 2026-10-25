@@ -3,14 +3,16 @@
 #
 #   scripts/package-release.sh 1.0.0     -> dist/ATLAS-1.0.0.dmg (+ .sha256)
 #
-# Without a Developer ID certificate the app is ad-hoc signed and not notarized, so macOS asks people to
-# approve it once (System Settings → Privacy & Security → Open Anyway). Set SIGN_IDENTITY to a
-# "Developer ID Application" identity to sign properly; notarization is a separate step.
+# Releases are signed with the self-signed "ATLAS Release" certificate (SIGN_IDENTITY), whose hash the in-app
+# updater pins and which keeps macOS permission grants stable across versions. It isn't Developer ID, so
+# macOS asks people to approve the first download once (System Settings → Privacy & Security → Open Anyway).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="${1:?usage: scripts/package-release.sh <version>}"
 
-INSTALL=0 UNIVERSAL=1 VERSION="$VERSION" SIGN_IDENTITY="${SIGN_IDENTITY:--}" scripts/build-app.sh
+INSTALL=0 UNIVERSAL=1 VERSION="$VERSION" CHANNEL=release SIGN_IDENTITY="${SIGN_IDENTITY:-ATLAS Release}" scripts/build-app.sh
+codesign -v -R='identifier "com.atlas.tracker" and certificate root = H"7d3eed29018c8a73ae6f33dc246d854a65c46a9a"' build/ATLAS.app \
+  || echo "warning: not signed with the ATLAS Release certificate; installed copies won't accept it as an update" >&2
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT

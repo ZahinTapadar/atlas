@@ -280,32 +280,10 @@ enum RichEmail {
 /// login Keychain (service "ATLAS SMTP"), stored by the user with `atlasctl email-setup`; ATLAS never sees
 /// it except to hand it to curl over stdin.
 enum SMTPMail {
-    static let keychainService = "ATLAS SMTP"
-
-    static func server(for address: String) -> (url: String, startTLS: Bool)? {
-        let domain = address.split(separator: "@").last.map { $0.lowercased() } ?? ""
-        switch domain {
-        case "gmail.com", "googlemail.com": return ("smtps://smtp.gmail.com:465", false)
-        case "icloud.com", "me.com", "mac.com": return ("smtp://smtp.mail.me.com:587", true)
-        default: return nil
-        }
-    }
-
-    static func password(for address: String) -> String? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        p.arguments = ["find-generic-password", "-s", keychainService, "-a", address, "-w"]
-        let out = Pipe()
-        p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return nil }
-        let d = out.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        let s = String(decoding: d, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        return p.terminationStatus == 0 && !s.isEmpty ? s : nil
-    }
-
-    static func isConfigured(_ address: String) -> Bool { server(for: address) != nil && password(for: address) != nil }
+    static func server(for address: String) -> (url: String, startTLS: Bool)? { MailAccount.server(for: address) }
+    static func password(for address: String) -> String? { MailAccount.password(for: address) }
+    static func isConfigured(_ address: String) -> Bool { MailAccount.isConfigured(address) }
+    static func savePassword(_ pass: String, for address: String) throws { try MailAccount.savePassword(pass, for: address) }
 
     /// Reads a line from the terminal with echo off.
     static func readSecret(prompt: String) -> String? {
@@ -314,30 +292,6 @@ enum SMTPMail {
         let s = String(cString: r).trimmingCharacters(in: .whitespacesAndNewlines)
         buf.withUnsafeMutableBufferPointer { p in for i in p.indices { p[i] = 0 } }
         return s.isEmpty ? nil : s
-    }
-
-    /// Saves the app password in the login Keychain. The command goes to `security -i` over stdin, so the
-    /// password never appears in a process's arguments.
-    static func savePassword(_ pass: String, for address: String) throws {
-        guard pass.range(of: #"^[A-Za-z0-9-]+$"#, options: .regularExpression) != nil,
-              address.range(of: #"^[^"\s]+$"#, options: .regularExpression) != nil else {
-            throw Integrations.Failure(message: "Unexpected characters; nothing was saved.")
-        }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        p.arguments = ["-i"]
-        let input = Pipe(), err = Pipe()
-        p.standardInput = input
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = err
-        try p.run()
-        input.fileHandleForWriting.write(Data("add-generic-password -U -s \"\(keychainService)\" -a \"\(address)\" -l \"ATLAS check-in email\" -T /usr/bin/security -w \(pass)\n".utf8))
-        try input.fileHandleForWriting.close()
-        let e = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        p.waitUntilExit()
-        guard p.terminationStatus == 0, password(for: address) == pass else {
-            throw Integrations.Failure(message: "The Keychain didn't save the password. \(e.trimmingCharacters(in: .whitespacesAndNewlines))")
-        }
     }
 
     static func send(to address: String, content: RichEmail.Content, password given: String? = nil) throws {

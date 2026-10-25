@@ -53,8 +53,24 @@ brew install --cask zahintapadar/tap/atlas
 ```
 
 ATLAS isn't notarized by Apple yet, so macOS blocks the first launch: open **System Settings → Privacy & Security**,
-scroll down and click **Open Anyway** next to "ATLAS was blocked". You only do this once. For scheduled check-ins,
-open **Settings → Claude → Connect** (needs Claude Code signed in with a Claude subscription).
+scroll down and click **Open Anyway** next to "ATLAS was blocked". You only do this once.
+
+On first launch a **setup checklist** walks through everything, each step with its live status and one button:
+
+- **Tracking:** Accessibility (window titles), Chrome tabs, Calendar, Notifications.
+- **Claude check-ins:** Claude Code signed in with a Claude subscription; **Connect** (registers the `atlas` MCP
+  server); **Check-in schedule** copies a request you paste into the Claude app, which creates the scheduled task
+  (9, 12, 15, 18 and 21) and runs a first check-in.
+- **Email:** where check-ins go. Gmail and iCloud addresses can add an app password for the designed email
+  (scorecard, animated charts, to-dos); otherwise check-ins arrive as plain text through Mail.
+- **Optional:** Things 3, the Chrome extension, a calendar connector in Claude.
+
+Today shows a reminder until the essential steps are done; the checklist reopens from **Settings → Permissions & setup…**.
+
+**Updates install themselves.** Release builds check GitHub on launch and every few hours and offer new
+versions in the sidebar. An update is installed only if its SHA-256 matches and its code signature comes
+from the pinned ATLAS Release certificate, which also keeps macOS permissions across versions. Homebrew
+installs update the same way (the cask is marked `auto_updates`).
 
 Releases are built from this repository by [`.github/workflows/release.yml`](.github/workflows/release.yml) when a
 `v*` tag is pushed (`scripts/package-release.sh` makes the universal disk image).

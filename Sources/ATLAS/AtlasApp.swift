@@ -76,6 +76,9 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.showOnboarding }, set: { model.showOnboarding = $0 })) {
             OnboardingView().environment(model)
         }
+        .sheet(isPresented: Binding(get: { model.showUpdate }, set: { model.showUpdate = $0 })) {
+            UpdateSheet().environment(model)
+        }
         .overlay(alignment: .bottom) {
             if let err = model.lastError ?? model.startupError {
                 ErrorBanner(message: err) { model.lastError = nil; model.startupError = nil }.padding()
@@ -104,6 +107,7 @@ struct Sidebar: View {
             }
 
             Spacer()
+            UpdatePill()
             TrackingControl()
         }
         .padding(.horizontal, 12)

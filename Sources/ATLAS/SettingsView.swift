@@ -39,6 +39,17 @@ struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     var body: some View {
         Form {
+            Section("Updates") {
+                LabeledContent("Version", value: Updater.isReleaseBuild ? Updater.currentVersion : "\(Updater.currentVersion) (built from source)")
+                if Updater.isReleaseBuild {
+                    Toggle("Check for updates automatically", isOn: setting(model, \.checkForUpdates))
+                }
+                HStack {
+                    Button("Check now") { Task { await model.checkForUpdates(userInitiated: true) } }
+                    if model.availableUpdate != nil { Button("Install…") { model.showUpdate = true } }
+                    if let s = model.updateStatus { Text(s).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
             Section("Tracking") {
                 Button("Permissions & setup…") { model.showOnboarding = true }
                 Toggle("Tracking enabled", isOn: setting(model, \.trackingEnabled))
