@@ -60,6 +60,8 @@ final class AppModel {
     private var permissionTimer: Timer?
     var claudeCodeAuth: ClaudeCodeProvider.AuthStatus?
     var claudeCodePath: String?
+    /// Whether Claude has the `atlas` MCP server pointing at this copy of ATLAS (nil until checked).
+    var mcpConnected: Bool?
     var lastError: String?
     var startupError: String?
 
@@ -379,6 +381,47 @@ final class AppModel {
         await refresh()
     }
 
+    // MARK: - Claude MCP
+
+    private var bundledCLI: String { Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/atlasctl").path }
+
+    /// Asks the Claude CLI whether `atlas` is registered and points at this app's atlasctl.
+    func checkMCP() async {
+        guard !DemoData.isEnabled, let claude = ClaudeCodeProvider.locateExecutable(override: settings.claudeExecutablePath) else {
+            mcpConnected = nil; return
+        }
+        let cli = bundledCLI
+        let out = await Task.detached { Self.run(claude, ["mcp", "get", "atlas"]) }.value
+        mcpConnected = out.status == 0 && out.text.contains(cli)
+    }
+
+    /// Registers this app's atlasctl as the `atlas` MCP server for Claude (user scope), replacing an older entry.
+    func connectMCP() async {
+        guard let claude = ClaudeCodeProvider.locateExecutable(override: settings.claudeExecutablePath) else {
+            lastError = "Claude Code isn't installed, so there's nothing to connect yet."; return
+        }
+        let cli = bundledCLI
+        let result = await Task.detached { () -> (status: Int32, text: String) in
+            _ = Self.run(claude, ["mcp", "remove", "--scope", "user", "atlas"])
+            return Self.run(claude, ["mcp", "add", "--scope", "user", "atlas", "--", cli, "mcp"])
+        }.value
+        if result.status != 0 { lastError = "Could not connect Claude: \(result.text)" }
+        await checkMCP()
+    }
+
+    nonisolated private static func run(_ exe: String, _ args: [String]) -> (status: Int32, text: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: exe)
+        p.arguments = args
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        do { try p.run() } catch { return (-1, error.localizedDescription) }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
+
     // MARK: - Things
 
     /// Re-reads Things' Today list (with checklists and project contents) and today's recorded reasons.
@@ -457,6 +500,7 @@ final class AppModel {
             let cc = ClaudeCodeProvider(executablePath: settings.claudeExecutablePath)
             claudeCodePath = ClaudeCodeProvider.locateExecutable(override: settings.claudeExecutablePath)
             claudeCodeAuth = await cc.authStatus()
+            if mcpConnected == nil { await checkMCP() }
         }
         health = await computeHealth()
     }

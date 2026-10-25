@@ -3,21 +3,26 @@
 #
 #   scripts/build-app.sh              build + install to ~/Applications + link atlasctl + register MCP
 #   INSTALL=0 scripts/build-app.sh    build into ./build only
+#   UNIVERSAL=1 VERSION=1.2.0 ...      Apple Silicon + Intel binary, stamped with a version (releases)
 #
 # Signing uses your "Apple Development" certificate when present. A stable signing identity matters:
 # macOS ties Accessibility/Automation grants to it, so ad-hoc builds lose those grants on every rebuild.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${CONFIG:-release}"
-ARCH="$(uname -m)"
-swift build -c "$CONFIG" --arch "$ARCH"
-BIN="$(swift build -c "$CONFIG" --arch "$ARCH" --show-bin-path)"
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); else ARCH_FLAGS=(--arch "$(uname -m)"); fi
+swift build -c "$CONFIG" "${ARCH_FLAGS[@]}"
+BIN="$(swift build -c "$CONFIG" "${ARCH_FLAGS[@]}" --show-bin-path)"
 
 APP="build/ATLAS.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/ATLAS" "$BIN/atlas-nm-host" "$BIN/atlasctl" "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+if [[ -n "${VERSION:-}" ]]; then
+  plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+  plutil -replace CFBundleVersion -string "${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}" "$APP/Contents/Info.plist"
+fi
 cp Resources/ATLAS.icns "$APP/Contents/Resources/ATLAS.icns"
 cp -R Extensions "$APP/Contents/Resources/Extensions"
 

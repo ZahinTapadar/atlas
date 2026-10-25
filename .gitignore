@@ -19,3 +19,4 @@ DerivedData/
 # Screen Studio projects and Firebase deploy cache stay local
 *.screenstudio/
 .firebase/
+dist/

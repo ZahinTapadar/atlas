@@ -1,0 +1,52 @@
+name: Release
+
+# Push a tag like v1.0.0 to build ATLAS-1.0.0.dmg and publish it as a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (without the v)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          V="${{ github.event.inputs.version }}"
+          [ -z "$V" ] && V="${GITHUB_REF_NAME#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: swift test
+
+      - name: Build disk image
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: scripts/package-release.sh "${{ steps.v.outputs.version }}"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          NOTES=$(cat <<'MD'
+          **Install:** open the disk image and drag ATLAS to Applications, or run `brew install --cask zahintapadar/tap/atlas`.
+
+          **First launch:** ATLAS isn't notarized by Apple yet, so macOS stops it the first time. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to "ATLAS was blocked". You only do this once.
+
+          Requires macOS 14 or later, on Apple Silicon or Intel. Scheduled check-ins also need Claude Code signed in with a Claude subscription.
+          MD
+          )
+          gh release create "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" \
+            --title "ATLAS $V" --notes "$NOTES" --latest || \
+          gh release upload "v$V" "dist/ATLAS-$V.dmg" "dist/ATLAS-$V.dmg.sha256" --clobber

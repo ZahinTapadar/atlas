@@ -65,8 +65,13 @@ struct OnboardingView: View {
             PermissionRow(title: "Notifications", detail: "Lock-screen-safe alerts. Check-in feedback arrives through the Claude app.",
                           state: p.notifications ? .granted : .optional, actionTitle: "Allow…") { model.requestNotifications() }
 
-            PermissionRow(title: "Claude", detail: "Scheduled check-ins run in the Claude app with your subscription and read ATLAS through the atlas MCP server.",
-                          state: model.claudeCodeAuth?.isSubscription == true ? .granted : .optional, actionTitle: nil) {}
+            PermissionRow(title: "Claude", detail: model.claudeCodePath == nil
+                              ? "Optional. Install Claude Code and sign in with your subscription for scheduled check-ins. Tracking works without it."
+                              : "Scheduled check-ins run with your Claude subscription and read ATLAS through the atlas MCP server.",
+                          state: model.mcpConnected == true ? .granted : .optional,
+                          actionTitle: model.claudeCodePath == nil ? nil : "Connect…") {
+                Task { await model.connectMCP() }
+            }
 
             HStack {
                 Text("Status updates automatically as you grant access.").font(.caption).foregroundStyle(.secondary)

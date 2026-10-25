@@ -208,6 +208,14 @@ struct ClaudeSettings: View {
                 switch model.settings.agentBackend {
                 case .claudeSubscription:
                     LabeledContent("Claude Code CLI", value: model.claudeCodePath ?? "Not found")
+                    LabeledContent("ATLAS in Claude") {
+                        HStack {
+                            Text(model.mcpConnected == true ? "Connected ✓" : (model.claudeCodePath == nil ? "Needs Claude Code" : "Not connected"))
+                            if model.claudeCodePath != nil {
+                                Button(model.mcpConnected == true ? "Reconnect" : "Connect") { Task { await model.connectMCP() } }
+                            }
+                        }
+                    }
                     LabeledContent("Sign-in", value: model.claudeCodeAuth.map {
                         $0.isSubscription ? "Claude subscription ✓" : $0.loggedIn ? "\($0.method) — not a subscription" : "Not signed in"
                     } ?? "Unknown")
