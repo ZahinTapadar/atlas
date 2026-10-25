@@ -132,22 +132,23 @@ case "email-setup":
         \(to.hasSuffix("gmail.com") || to.hasSuffix("googlemail.com")
             ? "Create one at https://myaccount.google.com/apppasswords (needs 2-Step Verification), name it ATLAS."
             : "Create one at https://account.apple.com → Sign-In and Security → App-Specific Passwords.")
-        It goes straight into your login Keychain as "ATLAS SMTP"; nothing is printed or saved elsewhere.
-
-        Paste the app password and press Return, then paste it again when asked to retype it.
-        Nothing appears while you paste; that's expected.
+        It is checked by sending you a test email, then kept in your login Keychain as "ATLAS SMTP".
+        Nothing you type is shown or saved anywhere else.
 
         """)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        p.arguments = ["add-generic-password", "-U", "-s", SMTPMail.keychainService, "-a", to, "-l", "ATLAS check-in email", "-w"]
-        p.standardInput = FileHandle.standardInput
-        p.standardOutput = FileHandle.standardOutput
-        p.standardError = FileHandle.standardError
-        try p.run(); p.waitUntilExit()
-        guard p.terminationStatus == 0 else { fail("The Keychain didn't save the password.") }
-        let latest = try await readStore().checkins(limit: 1).first
-        print(try await CheckinMail.deliver(subject: "ATLAS · your check-ins now look like this", body: latest?.body ?? "ATLAS is set up."))
+        guard let entered = SMTPMail.readSecret(prompt: "App password (hidden): ") else { fail("No password entered.") }
+        let pass = entered.replacingOccurrences(of: " ", with: "")
+        guard pass.range(of: #"^[A-Za-z0-9-]{12,40}$"#, options: .regularExpression) != nil else {
+            fail("That doesn't look like an app password (16 letters for Gmail). Nothing was saved.")
+        }
+        let store = try readStore()
+        let latest = try await store.checkins(limit: 1).first
+        print("Sending a test email…")
+        let content = try await CheckinMail.content(store: store, subject: "ATLAS · your check-ins now look like this",
+                                                   body: latest?.body ?? "ATLAS is set up.")
+        try SMTPMail.send(to: to, content: content, password: pass)
+        try SMTPMail.savePassword(pass, for: to)
+        print("Sent to \(to), and saved. Scheduled check-ins will now arrive as designed emails.")
     } catch { fail(error.localizedDescription) }
 
 case "mcp":
