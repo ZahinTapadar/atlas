@@ -115,10 +115,16 @@ case "preview-email":
         let latest = try await store.checkins(limit: 1).first
         let c = RichEmail.build(checkin: latest, fallbackSubject: "ATLAS preview", fallbackBody: latest?.body ?? "",
                                 events: try await store.events(from: Calendar.current.startOfDay(for: Date()), to: Date()),
-                                reasons: (try? await store.todoReasons(since: AtlasStore.dayKey())) ?? [])
+                                reasons: (try? await store.todoReasons(since: AtlasStore.dayKey())) ?? [],
+                                report: await CheckinMail.reportSections(store: store))
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try c.html.replacingOccurrences(of: "cid:day@atlas", with: "day.gif").write(to: dir.appendingPathComponent("email.html"), atomically: true, encoding: .utf8)
-        if let gif = c.gif { try gif.write(to: dir.appendingPathComponent("day.gif")) }
+        var html = c.html
+        for img in c.images {
+            let name = img.cid.replacingOccurrences(of: "@atlas", with: "") + ".gif"
+            html = html.replacingOccurrences(of: "cid:\(img.cid)", with: name)
+            try img.data.write(to: dir.appendingPathComponent(name))
+        }
+        try html.write(to: dir.appendingPathComponent("email.html"), atomically: true, encoding: .utf8)
         print(dir.appendingPathComponent("email.html").path)
     } catch { fail(error.localizedDescription) }
 

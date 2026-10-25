@@ -13,7 +13,8 @@ enum RichEmail {
         var subject: String
         var text: String
         var html: String
-        var gif: Data?
+        /// Inline images by Content-ID.
+        var images: [(cid: String, data: Data)]
     }
 
     // Dark palette, mirroring the app (Theme.swift / Components.swift).
@@ -52,7 +53,8 @@ enum RichEmail {
     // MARK: Build
 
     static func build(checkin: AtlasStore.Checkin?, fallbackSubject: String, fallbackBody: String,
-                      events: [ActivityEvent], reasons: [AtlasStore.TodoReason], now: Date = Date()) -> Content {
+                      events: [ActivityEvent], reasons: [AtlasStore.TodoReason],
+                      report: (top: String, bottom: String, images: [(cid: String, data: Data)])? = nil, now: Date = Date()) -> Content {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: now)
         let normalized = TimeAccounting.normalized(events, from: dayStart, to: now)
@@ -107,6 +109,7 @@ enum RichEmail {
             h += "</div>"
         }
         h += "</td></tr>"
+        if let report { h += report.top }
 
         // The day so far (animated)
         if gif != nil {
@@ -156,10 +159,14 @@ enum RichEmail {
             h += "</td></tr>"
         }
 
+        if let report { h += report.bottom }
+
         h += "<tr><td style=\"padding:22px 6px 0;font-size:12px;line-height:1.5;color:\(ink3);\">Sent by ATLAS from your Mac after your scheduled Claude check-in. Your activity stays on your Mac; this email carries only this summary.</td></tr>"
         h += "</table></td></tr></table></body></html>"
 
-        return Content(subject: fallbackSubject, text: text, html: h, gif: gif)
+        var images: [(cid: String, data: Data)] = gif.map { [("day@atlas", $0)] } ?? []
+        images += report?.images ?? []
+        return Content(subject: fallbackSubject, text: text, html: h, images: images)
     }
 
     private static func section(_ title: String, detail: String?) -> String {
@@ -394,15 +401,15 @@ enum SMTPMail {
         \(b64(Data(content.html.utf8)))\r
 
         """
-        if let gif = content.gif {
+        for (i, img) in content.images.enumerated() {
             m += """
             --\(rel)\r
-            Content-Type: image/gif; name="day.gif"\r
+            Content-Type: image/gif; name="chart\(i).gif"\r
             Content-Transfer-Encoding: base64\r
-            Content-ID: <day@atlas>\r
-            Content-Disposition: inline; filename="day.gif"\r
+            Content-ID: <\(img.cid)>\r
+            Content-Disposition: inline; filename="chart\(i).gif"\r
             \r
-            \(b64(gif))\r
+            \(b64(img.data))\r
 
             """
         }
@@ -443,6 +450,14 @@ enum CheckinMail {
         let checkin = latest.flatMap { now.timeIntervalSince($0.ts) < 45 * 60 ? $0 : nil }
         let events = try await store.events(from: start, to: now)
         let reasons = (try? await store.todoReasons(since: AtlasStore.dayKey(now))) ?? []
-        return RichEmail.build(checkin: checkin, fallbackSubject: subject, fallbackBody: body, events: events, reasons: reasons, now: now)
+        return RichEmail.build(checkin: checkin, fallbackSubject: subject, fallbackBody: body, events: events, reasons: reasons,
+                               report: await reportSections(store: store, now: now), now: now)
+    }
+
+    static func reportSections(store: AtlasStore, now: Date = Date()) async -> (top: String, bottom: String, images: [(cid: String, data: Data)]) {
+        let today = await Report.build(period: .today, store: store, now: now)
+        let week = await Report.build(period: .week, store: store, now: now)
+        let checkins = (try? await store.checkins(limit: 80)) ?? []
+        return ReportEmail.sections(today: today, week: week, checkins: checkins, now: now)
     }
 }
