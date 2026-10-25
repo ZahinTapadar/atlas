@@ -1,0 +1,12 @@
+<svg width="1024" height="1024" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Atlas / A App Icon">
+<rect width="256" height="256" rx="58" fill="url(#paint0_radial_0_4)"/>
+<path id="Atlas / Custom split-apex A" d="M55 200L110 61C112 56.3333 115.667 54 121 54H135C139.667 54 143 56.6667 145 62L169 123L140 134L128 101L87 200H55ZM106 148L173 129L201 200H168L154 163L95 180L106 148Z" fill="#F2F6FA"/>
+</g>
+<defs>
+<radialGradient id="paint0_radial_0_4" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 128) scale(256)">
+<stop stop-color="#5C5C5C"/>
+<stop offset="1" stop-color="#0F1015"/>
+</radialGradient>
+</defs>
+</svg>

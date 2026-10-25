@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ATLAS Activity Bridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Reports the active tab's domain and title to the ATLAS app on this Mac. Nothing leaves your computer.",
   "permissions": [
     "tabs",
@@ -13,5 +13,18 @@
   },
   "incognito": "spanning",
   "minimum_chrome_version": "116",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5okPRjV2e28vpx3HfQIeOycXGANVmn1wbml7E4K7n+a21cO4Jhi7DkNSaW3pnEUpP2peaPapxJfYODSQ2+cR+J4+sHcx9k8YQQuGwrx3sY8paH3Vrh341qmOEFewyqbyk8XJA4yqFUoQwlWRE43x//qrQToQXJ3iRcFvliTsk8amVeCMm9pOZpD6sbgjkBkgWZWbJkgG/Jc9ZfwPRQaFvAREnbeCF53WYT27XSeNkKbo08mVgdhMQIbkPPfRkhS5epSOimjOY/t3vodZ4PR5LpYmgVrTVSsHmToYxxOjxAgn1E80rca2l1+YCxjLhefustfxecp616Y21ebKWx2dnQIDAQAB"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5okPRjV2e28vpx3HfQIeOycXGANVmn1wbml7E4K7n+a21cO4Jhi7DkNSaW3pnEUpP2peaPapxJfYODSQ2+cR+J4+sHcx9k8YQQuGwrx3sY8paH3Vrh341qmOEFewyqbyk8XJA4yqFUoQwlWRE43x//qrQToQXJ3iRcFvliTsk8amVeCMm9pOZpD6sbgjkBkgWZWbJkgG/Jc9ZfwPRQaFvAREnbeCF53WYT27XSeNkKbo08mVgdhMQIbkPPfRkhS5epSOimjOY/t3vodZ4PR5LpYmgVrTVSsHmToYxxOjxAgn1E80rca2l1+YCxjLhefustfxecp616Y21ebKWx2dnQIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "ATLAS is tracking the active tab",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  }
 }

@@ -427,6 +427,20 @@ public actor AtlasStore {
 
     // MARK: - Check-ins
 
+    /// One to-do as judged by a check-in: what was planned (usually from Things) and what happened.
+    public struct CheckinTodo: Codable, Sendable, Hashable {
+        public var title: String
+        /// "done" | "in_progress" | "not_started" | "dropped"
+        public var status: String
+        public var minutes: Int?
+        public var thingsID: String?
+        public var note: String?
+
+        public init(title: String, status: String, minutes: Int? = nil, thingsID: String? = nil, note: String? = nil) {
+            self.title = title; self.status = status; self.minutes = minutes; self.thingsID = thingsID; self.note = note
+        }
+    }
+
     public struct Checkin: Codable, Sendable, Hashable, Identifiable {
         public var id: String
         public var ts: Date
@@ -434,23 +448,43 @@ public actor AtlasStore {
         /// "on_track" | "mixed" | "off_track" | "insufficient_data"
         public var verdict: String?
         public var body: String
+        public var todos: [CheckinTodo]
 
-        public init(id: String = UUID().uuidString, ts: Date = Date(), source: String, verdict: String?, body: String) {
-            self.id = id; self.ts = ts; self.source = source; self.verdict = verdict; self.body = body
+        public init(id: String = UUID().uuidString, ts: Date = Date(), source: String, verdict: String?, body: String,
+                    todos: [CheckinTodo] = []) {
+            self.id = id; self.ts = ts; self.source = source; self.verdict = verdict; self.body = body; self.todos = todos
         }
     }
 
     public func saveCheckin(_ c: Checkin) throws {
-        try db.run("INSERT OR REPLACE INTO checkin (id, ts, source, verdict, body) VALUES (?,?,?,?,?)",
-                   c.id, c.ts, c.source, c.verdict, String(c.body.prefix(20_000)))
+        let todos = c.todos.isEmpty ? nil : try AtlasJSON.string(Array(c.todos.prefix(60)))
+        try db.run("INSERT OR REPLACE INTO checkin (id, ts, source, verdict, body, todos) VALUES (?,?,?,?,?,?)",
+                   c.id, c.ts, c.source, c.verdict, String(c.body.prefix(20_000)), todos)
     }
 
     public func checkins(limit: Int = 30) throws -> [Checkin] {
         try db.query("SELECT * FROM checkin ORDER BY ts DESC LIMIT ?", [limit]) { r in
             Checkin(id: r.string("id")!, ts: r.date("ts")!, source: r.string("source") ?? "", verdict: r.string("verdict"),
-                    body: r.string("body") ?? "")
+                    body: r.string("body") ?? "",
+                    todos: r.string("todos").flatMap { try? AtlasJSON.decode([CheckinTodo].self, from: $0) } ?? [])
         }
     }
+
+    // MARK: - Simple key/value preferences shared by the app and atlasctl
+
+    public func preference(_ key: String) throws -> String? {
+        try db.query("SELECT value FROM settings WHERE key = ?", ["pref." + key]) { $0.string("value") }.first ?? nil
+    }
+
+    public func setPreference(_ key: String, _ value: String?) throws {
+        if let value, !value.isEmpty {
+            try db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", "pref." + key, value)
+        } else {
+            try db.run("DELETE FROM settings WHERE key = ?", "pref." + key)
+        }
+    }
+
+    public static let notifyEmailKey = "notify_email"
 
     // MARK: - Tracker heartbeat
 

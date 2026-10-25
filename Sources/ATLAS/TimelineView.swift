@@ -23,14 +23,25 @@ struct TimelineView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            PageHeader(title: "Timeline", subtitle: "\(filtered.count) segments · right-click to recategorize, split or merge") {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.inkTertiary)
+                    TextField("Search apps, sites, titles", text: $search).textFieldStyle(.plain).frame(width: 200)
+                }
+                .font(.system(size: 13))
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Theme.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.hairline))
+            }
+            .padding(.horizontal, Theme.gutter).padding(.top, 38).padding(.bottom, 16)
+            HStack(spacing: 12) {
                 DatePicker("Day", selection: $day, displayedComponents: .date).labelsHidden().frame(width: 120)
                 Picker("Category", selection: $categoryFilter) {
                     Text("All categories").tag(ActivityCategory?.none)
                     ForEach(ActivityCategory.allCases) { Text($0.displayName).tag(ActivityCategory?.some($0)) }
                 }
-                .frame(width: 200)
-                Toggle("Uncertain only", isOn: $uncertainOnly)
+                .labelsHidden().frame(width: 190)
+                Toggle("Uncertain only", isOn: $uncertainOnly).toggleStyle(.checkbox)
                 Spacer()
                 if selection.count >= 2 {
                     Menu("Merge \(selection.count) as…") {
@@ -41,8 +52,8 @@ struct TimelineView: View {
                     .help("Merge adjacent segments into one")
                 }
             }
-            .padding(10)
-            Divider()
+            .font(.system(size: 13))
+            .padding(.horizontal, Theme.gutter).padding(.bottom, 14)
             Table(filtered, selection: $selection) {
                 TableColumn("Time") { e in Text(Fmt.range(e.start, e.end)).monospacedDigit() }.width(min: 110, ideal: 120)
                 TableColumn("Duration") { e in Text(Fmt.duration(e.duration)).monospacedDigit() }.width(60)
@@ -52,13 +63,10 @@ struct TimelineView: View {
                         if let t = e.browser?.title ?? e.windowTitle, e.privacy == .normal {
                             Text(t).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
-                        if let note = e.stateNote { Text(note).font(.caption2).foregroundStyle(.orange) }
+                        if let note = e.stateNote { Text(note).font(.caption2).foregroundStyle(Theme.mixed) }
                     }
                 }
-                TableColumn("Category") { e in
-                    Label(e.classification.category.displayName, systemImage: e.classification.category.icon)
-                        .foregroundStyle(e.classification.category.color)
-                }.width(min: 150, ideal: 170)
+                TableColumn("Category") { e in CategoryChip(category: e.classification.category) }.width(min: 150, ideal: 170)
                 TableColumn("State") { e in Text(e.state.rawValue.replacingOccurrences(of: "_", with: " ")) }.width(70)
                 TableColumn("Confidence") { e in ConfidenceBadge(classification: e.classification) }.width(min: 90, ideal: 110)
             }
@@ -78,9 +86,13 @@ struct TimelineView: View {
                     Button("Split…") { splitting = e }.disabled(e.duration < 120)
                 }
             }
+            .tableStyle(.inset(alternatesRowBackgrounds: false))
+            .scrollContentBackground(.hidden)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusPanel, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusPanel, style: .continuous).strokeBorder(Theme.hairline))
+            .padding(.horizontal, Theme.gutter).padding(.bottom, 24)
         }
-        .searchable(text: $search, placement: .toolbar)
-        .navigationTitle("Timeline")
         .task(id: day) { await load() }
         .onChange(of: model.todayEvents) { Task { await load() } }
         .sheet(item: $splitting) { e in SplitSheet(event: e) { d in model.split(e, at: d) } }

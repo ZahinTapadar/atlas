@@ -34,14 +34,77 @@ struct MCPServer {
         ],
         [
             "name": "record_checkin",
-            "description": "Save this check-in's feedback into ATLAS so the user sees it in the app's Agent panel.",
+            "description": "Save this check-in into ATLAS: the verdict, the feedback, and today's to-dos with their status. It appears on the app's Today screen and in Check-ins, and the app posts a notification.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
                     "verdict": ["type": "string", "enum": ["on_track", "mixed", "off_track", "insufficient_data"]],
-                    "feedback": ["type": "string", "description": "The feedback shown to the user (markdown)."],
+                    "feedback": ["type": "string", "description": "The feedback shown to the user (markdown: verdict sentence, evidence bullets, a 'Next:' line)."],
+                    "todos": [
+                        "type": "array",
+                        "description": "Today's to-dos (from Things and the briefing) and what happened to each.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "title": ["type": "string"],
+                                "status": ["type": "string", "enum": ["done", "in_progress", "not_started", "dropped"]],
+                                "minutes": ["type": "integer", "description": "Tracked minutes spent on it today, if known."],
+                                "things_id": ["type": "string"],
+                                "note": ["type": "string"],
+                            ],
+                            "required": ["title", "status"],
+                            "additionalProperties": false,
+                        ],
+                    ],
                 ],
                 "required": ["verdict", "feedback"],
+                "additionalProperties": false,
+            ],
+        ],
+        [
+            "name": "get_things_today",
+            "description": "The user's Things 3 Today list (including overdue items): id, title, status, notes, due date, tags, project. This is what they intended to do today.",
+            "inputSchema": ["type": "object", "properties": [String: Any](), "additionalProperties": false],
+            "annotations": ["readOnlyHint": true],
+        ],
+        [
+            "name": "update_things_todo",
+            "description": "Update one Things to-do: mark it complete (only when tracked activity clearly shows it finished), reopen it, or append a short dated note about progress. Never deletes anything.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "id": ["type": "string", "description": "Things to-do id from get_things_today."],
+                    "action": ["type": "string", "enum": ["complete", "reopen", "append_note"]],
+                    "note": ["type": "string", "description": "Short progress note (required for append_note; optional otherwise)."],
+                ],
+                "required": ["id", "action"],
+                "additionalProperties": false,
+            ],
+        ],
+        [
+            "name": "add_things_todo",
+            "description": "Add a to-do to Things (e.g. a concrete next step from this check-in). Use sparingly; avoid duplicates of existing to-dos.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "title": ["type": "string"],
+                    "notes": ["type": "string"],
+                    "when": ["type": "string", "enum": ["today", "tomorrow", "evening", "anytime"]],
+                ],
+                "required": ["title"],
+                "additionalProperties": false,
+            ],
+        ],
+        [
+            "name": "send_email_summary",
+            "description": "Email this check-in to the user. The recipient is fixed in ATLAS settings and cannot be changed here.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "subject": ["type": "string"],
+                    "body": ["type": "string", "description": "Plain text."],
+                ],
+                "required": ["subject", "body"],
                 "additionalProperties": false,
             ],
         ],
@@ -95,9 +158,38 @@ struct MCPServer {
             guard let feedback = a["feedback"] as? String, !feedback.isEmpty else {
                 throw NSError(domain: "atlas", code: 3, userInfo: [NSLocalizedDescriptionKey: "feedback is required"])
             }
+            let todos = (a["todos"] as? [[String: Any]] ?? []).compactMap { t -> AtlasStore.CheckinTodo? in
+                guard let title = t["title"] as? String, let status = t["status"] as? String else { return nil }
+                return .init(title: title, status: status, minutes: t["minutes"] as? Int,
+                             thingsID: t["things_id"] as? String, note: t["note"] as? String)
+            }
             let store = try AtlasStore(path: AtlasStore.defaultPath)
-            try await store.saveCheckin(.init(source: "scheduled-checkin", verdict: a["verdict"] as? String, body: feedback))
-            return "Saved to ATLAS."
+            try await store.saveCheckin(.init(source: "scheduled-checkin", verdict: a["verdict"] as? String, body: feedback, todos: todos))
+            return "Saved to ATLAS (\(todos.count) to-dos)."
+        case "get_things_today":
+            return String(decoding: try JSONEncoder().encode(try Integrations.thingsToday()), as: UTF8.self)
+        case "update_things_todo":
+            guard let id = a["id"] as? String, let action = Integrations.ThingsAction(rawValue: a["action"] as? String ?? "") else {
+                throw Integrations.Failure(message: "id and a valid action are required")
+            }
+            let note = (a["note"] as? String).flatMap { $0.isEmpty ? nil : String($0.prefix(500)) }
+            if action == .appendNote && note == nil { throw Integrations.Failure(message: "append_note needs a note") }
+            try Integrations.updateThings(id: id, action: action, note: note)
+            return "Updated."
+        case "add_things_todo":
+            guard let title = a["title"] as? String, !title.isEmpty else { throw Integrations.Failure(message: "title is required") }
+            try Integrations.addThings(title: String(title.prefix(200)), notes: a["notes"] as? String, when: a["when"] as? String ?? "today")
+            return "Added to Things."
+        case "send_email_summary":
+            let store = try readStore()
+            guard let to = try await store.preference(AtlasStore.notifyEmailKey), Integrations.isPlausibleEmail(to) else {
+                throw Integrations.Failure(message: "No notification email set. Run: atlasctl set-email you@example.com")
+            }
+            guard let subject = a["subject"] as? String, let body = a["body"] as? String else {
+                throw Integrations.Failure(message: "subject and body are required")
+            }
+            try Integrations.sendEmail(to: to, subject: String(subject.prefix(200)), body: String(body.prefix(20_000)))
+            return "Emailed."
         default:
             throw NSError(domain: "atlas", code: 4, userInfo: [NSLocalizedDescriptionKey: "Unknown tool \(name)"])
         }

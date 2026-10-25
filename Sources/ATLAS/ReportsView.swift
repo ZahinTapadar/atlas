@@ -25,82 +25,77 @@ struct ReportsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Picker("Range", selection: $range) {
-                    Text("Today").tag(1); Text("7 days").tag(7); Text("30 days").tag(30)
+            VStack(alignment: .leading, spacing: 32) {
+                PageHeader(title: "Reports", subtitle: "Where your time went, how focused it was, and how check-ins judged it") {
+                    Picker("Range", selection: $range) {
+                        Text("Today").tag(1); Text("7 days").tag(7); Text("30 days").tag(30)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 240)
                 }
-                .pickerStyle(.segmented).frame(width: 280)
 
                 let engaged = stats.reduce(0) { $0 + $1.engaged }
-                let planned = stats.reduce(0) { $0 + $1.planned }
-                let completed = stats.reduce(0) { $0 + $1.completed }
                 let switches = stats.reduce(0) { $0 + $1.switches }
-                HStack(spacing: 28) {
-                    Metric(label: "Engaged time", value: Fmt.duration(engaged))
-                    Metric(label: "Task completion", value: planned > 0 ? "\(completed)/\(planned)" : "—",
-                           caption: planned > 0 ? "\(Int(Double(completed) / Double(planned) * 100))% of planned tasks" : "no planned tasks")
-                    Metric(label: "Switches / hour", value: engaged > 0 ? String(format: "%.1f", Double(switches) / (engaged / 3600)) : "—")
-                    Metric(label: "Longest focus", value: Fmt.duration(stats.map(\.longestFocus).max() ?? 0))
-                    Metric(label: "Unplanned leisure", value: Fmt.duration(stats.reduce(0) { $0 + $1.unplanned }),
-                           caption: "entertainment, social, gaming")
-                    Metric(label: "Uncertain", value: Fmt.duration(stats.reduce(0) { $0 + $1.uncertain }))
-                }
+                FigureLine(parts: [
+                    (Fmt.duration(engaged), "engaged"),
+                    (Fmt.duration(stats.map(\.longestFocus).max() ?? 0), "longest focus"),
+                    (engaged > 0 ? String(format: "%.1f", Double(switches) / (engaged / 3600)) : "–", "switches per hour"),
+                    (Fmt.duration(stats.reduce(0) { $0 + $1.unplanned }), "on video, social and games"),
+                    (Fmt.duration(stats.reduce(0) { $0 + $1.uncertain }), "uncertain"),
+                ])
 
-                Card(title: "Time allocation", systemImage: "chart.bar") {
+                Card(title: "Time allocation") {
                     Chart {
                         ForEach(stats) { d in
                             ForEach(AllocationGroup.allCases, id: \.self) { g in
                                 if let v = d.byGroup[g], v > 0 {
-                                    BarMark(x: .value("Day", d.day, unit: .day), y: .value("Hours", v / 3600))
+                                    BarMark(x: .value("Day", d.day, unit: .day), y: .value("Hours", v / 3600), width: .ratio(0.6))
                                         .foregroundStyle(by: .value("Group", g.displayName))
+                                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                                 }
                             }
                         }
                     }
+                    .chartForegroundStyleScale(domain: AllocationGroup.allCases.map(\.displayName),
+                                               range: AllocationGroup.allCases.map(\.color))
+                    .chartXScale(domain: chartDomain)
                     .chartYAxisLabel("hours")
-                    .frame(height: 220)
+                    .chartLegend(position: .bottom, alignment: .leading, spacing: 12)
+                    .frame(height: 230)
                 }
 
-                HStack(alignment: .top, spacing: 14) {
-                    Card(title: "Planned vs. actual (minutes)", systemImage: "arrow.left.arrow.right") {
-                        Chart {
-                            ForEach(stats) { d in
-                                BarMark(x: .value("Day", d.day, unit: .day), y: .value("Minutes", d.plannedMinutes))
-                                    .foregroundStyle(by: .value("Kind", "Planned")).position(by: .value("Kind", "Planned"))
-                                BarMark(x: .value("Day", d.day, unit: .day),
-                                        y: .value("Minutes", ((d.byGroup[.activeWork] ?? 0) + (d.byGroup[.learning] ?? 0) + (d.byGroup[.reading] ?? 0)) / 60))
-                                    .foregroundStyle(by: .value("Kind", "Productive actual")).position(by: .value("Kind", "Productive actual"))
-                            }
-                        }
-                        .frame(height: 180)
-                    }
-                    Card(title: "Rubric trend", systemImage: "chart.line.uptrend.xyaxis") {
-                        let scored = stats.filter { $0.score != nil }
-                        if scored.isEmpty {
-                            Text("No scored windows yet — scores need enough observed time.").foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 48) {
+                    Card(title: "Check-in verdicts") {
+                        let verdicts = verdictCounts
+                        if verdicts.isEmpty {
+                            Text("No check-ins in this range yet.").font(.system(size: 13)).foregroundStyle(Theme.inkSecondary)
                         } else {
-                            Chart(scored) { d in
-                                LineMark(x: .value("Day", d.day, unit: .day), y: .value("Score", d.score!))
-                                PointMark(x: .value("Day", d.day, unit: .day), y: .value("Score", d.score!))
+                            Chart(verdicts, id: \.id) { v in
+                                BarMark(x: .value("Day", v.day, unit: .day), y: .value("Check-ins", v.count), width: .ratio(0.5))
+                                    .foregroundStyle(by: .value("Verdict", v.verdict.title))
+                                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                             }
-                            .chartYScale(domain: 0...100)
+                            .chartForegroundStyleScale(domain: [Verdict.onTrack, .mixed, .offTrack].map(\.title),
+                                                       range: [Theme.onTrack, Theme.mixed, Theme.offTrack])
+                            .chartXScale(domain: chartDomain)
+                            .chartLegend(position: .bottom, alignment: .leading)
                             .frame(height: 180)
                         }
-                        Text("Score = weighted rubric (Settings → Claude → Rubric). Days with insufficient data have no score.")
-                            .font(.caption).foregroundStyle(.secondary)
                     }
-                }
-
-                Card(title: "Focus sessions", systemImage: "scope") {
-                    Chart(stats) { d in
-                        BarMark(x: .value("Day", d.day, unit: .day), y: .value("Sessions", d.focusSessions))
+                    Card(title: "Focus sessions") {
+                        Chart(stats) { d in
+                            BarMark(x: .value("Day", d.day, unit: .day), y: .value("Sessions", d.focusSessions), width: .ratio(0.5))
+                                .foregroundStyle(Theme.inkTertiary.opacity(0.55))
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        }
+                        .chartXScale(domain: chartDomain)
+                        .frame(height: 180)
+                        Text("Sessions of 25 minutes or more spent on work, learning or reading.")
+                            .font(.system(size: 11.5)).foregroundStyle(Theme.inkTertiary)
                     }
-                    .frame(height: 140)
-                    Text("Sessions ≥ 25 minutes whose primary category is work, learning or reading.").font(.caption).foregroundStyle(.secondary)
                 }
 
                 if let today = model.dailySummaries.first {
-                    Card(title: "Recommendations from \(today.day)", systemImage: "lightbulb") {
+                    Card(title: "Recommendations from \(today.day)") {
                         ForEach(today.recommendations.suffix(8), id: \.self) { Text("• \($0)").font(.callout) }
                         if !today.scheduleChanges.isEmpty {
                             Text("Schedule changes proposed").font(.subheadline.weight(.semibold)).padding(.top, 4)
@@ -109,10 +104,34 @@ struct ReportsView: View {
                     }
                 }
             }
-            .padding(18)
+            .padding(.horizontal, Theme.gutter).padding(.top, 38).padding(.bottom, 40)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle("Reports")
+        .scrollIndicators(.never)
         .task(id: range) { await load() }
+    }
+
+    private var chartDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        let end = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: Date()))!
+        let start = cal.date(byAdding: .day, value: -range, to: end)!
+        return start...end
+    }
+
+    private struct VerdictCount { var id: String; var day: Date; var verdict: Verdict; var count: Int }
+
+    private var verdictCounts: [VerdictCount] {
+        let cal = Calendar.current
+        let start = chartDomain.lowerBound
+        var out: [String: VerdictCount] = [:]
+        for c in model.checkins where c.ts >= start {
+            let v = Verdict(c.verdict)
+            guard v == .onTrack || v == .mixed || v == .offTrack else { continue }
+            let day = cal.startOfDay(for: c.ts)
+            let key = "\(day.timeIntervalSince1970)-\(v.rawValue)"
+            out[key, default: VerdictCount(id: key, day: day, verdict: v, count: 0)].count += 1
+        }
+        return out.values.sorted { $0.day < $1.day }
     }
 
     private func load() async {
@@ -145,5 +164,19 @@ struct ReportsView: View {
                 score: summaries[f.string(from: day)]?.assessment?.score))
         }
         stats = out
+    }
+}
+
+/// Summary figures set as one line of type: value in ink, label in secondary.
+struct FigureLine: View {
+    var parts: [(String, String)]
+    var body: some View {
+        parts.enumerated().reduce(Text("")) { acc, item in
+            let (i, p) = item
+            let sep = i == 0 ? Text("") : Text("   ·   ").foregroundColor(Theme.inkTertiary)
+            return acc + sep + Text(p.0).font(.system(size: 17, weight: .semibold).monospacedDigit()).foregroundColor(Theme.ink)
+                + Text(" " + p.1).font(.system(size: 15)).foregroundColor(Theme.inkSecondary)
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

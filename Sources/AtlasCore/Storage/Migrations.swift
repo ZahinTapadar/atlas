@@ -162,6 +162,10 @@ enum Migrations {
         );
         CREATE INDEX idx_checkin_ts ON checkin(ts);
         """),
+        (3, """
+        -- Per check-in to-do status (mirrors Things: what was supposed to happen and what did).
+        ALTER TABLE checkin ADD COLUMN todos TEXT;
+        """),
     ]
 
     static var latestVersion: Int { all.last?.version ?? 0 }

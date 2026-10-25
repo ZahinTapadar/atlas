@@ -50,6 +50,7 @@ final class AppModel {
     var agentBusy = false
     var hasAPIKey = false
     var checkins: [AtlasStore.Checkin] = []
+    var notifyEmail = ""
     var showOnboarding = false
     var permissions = PermissionStatus()
     private var permissionTimer: Timer?
@@ -59,6 +60,7 @@ final class AppModel {
     var startupError: String?
 
     static func openStore() -> (AtlasStore, String?) {
+        if DemoData.isEnabled { return (try! AtlasStore.inMemory(), nil) }
         let dir = AtlasStore.defaultDirectory
         let path = dir.appendingPathComponent("atlas.sqlite").path
         do {
@@ -97,7 +99,18 @@ final class AppModel {
         self.idle = IdleMonitor(threshold: settings.idleThresholdSeconds) { [weak self] o, d in self?.observe(o, at: d) }
         self.titles = WindowTitleObserver { [weak self] o, d in self?.observe(o, at: d) }
         self.browserProbe = BrowserScriptProbe { [weak self] o, d in self?.observe(o, at: d) }
-        Task { await self.boot() }
+        if DemoData.isEnabled { Task { await self.bootDemo() } } else { Task { await self.boot() } }
+    }
+
+    /// `--demo`: synthetic data in memory, no tracking, no permissions, no prompts.
+    private func bootDemo() async {
+        await DemoData.seed(into: store)
+        var s = AtlasSettings()
+        s.onboardingCompleted = true
+        s.notificationsEnabled = false
+        settings = s
+        await refresh()
+        DemoData.prepareWindow()
     }
 
     nonisolated static func healthNotesForAgent(_ ek: EventKitConnector) async -> [String] {
@@ -379,8 +392,15 @@ final class AppModel {
             dailySummaries = try await store.dailySummaries(limit: 30)
             rules = try await store.rules()
             checkins = try await store.checkins(limit: 30)
+            notifyEmail = try await store.preference(AtlasStore.notifyEmailKey) ?? ""
         } catch { lastError = "Could not read data: \(error)" }
+        announceNewCheckin()
         current = await tracker.currentSnapshot(at: now)
+        if DemoData.isEnabled {
+            current = todayEvents.max { $0.end < $1.end }
+            health = []
+            return
+        }
         calendarStatus = await eventKit.status()
         hasAPIKey = !(secrets.read(ClaudeProvider.apiKeyAccount) ?? "").isEmpty
         if settings.agentBackend == .claudeSubscription {
@@ -607,6 +627,32 @@ final class AppModel {
             if wasRunning && settings.trackingEnabled { await startTracking() }
             await refresh()
         }
+    }
+
+    /// Posts a native notification the first time a new scheduled check-in is seen.
+    private func announceNewCheckin() {
+        guard !DemoData.isEnabled, let latest = checkins.first else { return }
+        let key = "lastAnnouncedCheckin"
+        let seen = UserDefaults.standard.string(forKey: key)
+        guard seen != latest.id else { return }
+        UserDefaults.standard.set(latest.id, forKey: key)
+        // First launch only records the baseline; old check-ins never notify.
+        guard seen != nil, Date().timeIntervalSince(latest.ts) < 2 * 3600,
+              settings.notificationsEnabled, !NotificationService.isQuiet(settings.quietHours) else { return }
+        let verdict = Verdict(latest.verdict)
+        let parts = CheckinParts(latest.body)
+        let body: String
+        switch settings.notificationDetail {
+        case .minimal: body = "New check-in: \(verdict.title)."
+        case .summary: body = parts.next.map { "\(verdict.title). Next: \($0)" } ?? "\(verdict.title). \(parts.headline)"
+        }
+        NotificationService.post(id: "checkin-\(latest.id)", title: "ATLAS check-in", body: String(body.prefix(220)))
+    }
+
+    func setNotifyEmail(_ value: String) {
+        let v = value.trimmingCharacters(in: .whitespaces)
+        notifyEmail = v
+        Task { try? await store.setPreference(AtlasStore.notifyEmailKey, v.isEmpty ? nil : v) }
     }
 
     func payloadPreview(windowID: String) async -> String? { try? await coordinator.preview(windowID: windowID) }

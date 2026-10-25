@@ -10,3 +10,8 @@ DerivedData/
 *.sqlite-shm
 .env
 .claude/
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/build/
+.impeccable/config.local.json
+.impeccable/tmp/

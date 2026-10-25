@@ -88,6 +88,25 @@ case "checkin":
         print("saved")
     } catch { fail(error.localizedDescription) }
 
+case "set-email":
+    guard let addr = args.dropFirst().first, Integrations.isPlausibleEmail(addr) else { fail("usage: atlasctl set-email you@example.com") }
+    do {
+        try await AtlasStore(path: AtlasStore.defaultPath).setPreference(AtlasStore.notifyEmailKey, addr)
+        print("Check-in emails will go to \(addr)")
+    } catch { fail(error.localizedDescription) }
+
+case "things":
+    do {
+        for t in try Integrations.thingsToday() { print("[\(t.status)] \(t.title)  (\(t.id))") }
+    } catch { fail(error.localizedDescription) }
+
+case "test-email":
+    do {
+        guard let to = try await readStore().preference(AtlasStore.notifyEmailKey) else { fail("run atlasctl set-email first") }
+        try Integrations.sendEmail(to: to, subject: "ATLAS test email", body: "Check-in emails from ATLAS will arrive like this.")
+        print("Sent to \(to)")
+    } catch { fail(error.localizedDescription) }
+
 case "mcp":
     await MCPServer().run()
 
@@ -98,6 +117,9 @@ case "-h", "--help", "help":
     atlasctl now
     atlasctl checkins [--limit N]
     atlasctl checkin --verdict on_track|mixed|off_track|insufficient_data [--source NAME] < feedback.txt
+    atlasctl things                        today's Things to-dos
+    atlasctl set-email you@example.com     where check-in emails go
+    atlasctl test-email
     atlasctl mcp
     """)
 

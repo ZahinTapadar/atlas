@@ -244,6 +244,11 @@ struct ClaudeSettings: View {
                     ForEach(["low", "medium", "high"], id: \.self) { Text($0.capitalized).tag($0) }
                 }
             }
+            Section("Check-in delivery") {
+                TextField("Email check-ins to", text: Binding(get: { model.notifyEmail }, set: { model.setNotifyEmail($0) }))
+                Text("Each scheduled check-in is emailed here from your Mail app, sent to your phone as a Claude notification, and shown in ATLAS. The check-in can only email this address.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("What gets sent") {
                 Toggle("Review each request before sending", isOn: setting(model, \.reviewBeforeSending))
                 Toggle("Include window/page titles (non-sensitive only)", isOn: setting(model, \.sendWindowTitles))

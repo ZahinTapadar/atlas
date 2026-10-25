@@ -22,6 +22,15 @@
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111">
 </p>
 
+<p align="center">
+  <a href="https://zahintapadar.github.io/atlas/#film"><img src="docs/assets/atlas-promo-poster.jpg" width="820" alt="Watch the 34-second ATLAS film"></a><br>
+  <sub>Watch the 34-second film · <a href="docs/assets/atlas-promo.mp4">MP4</a></sub>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screens/today-light.webp" width="820" alt="ATLAS Today screen (sample data)">
+</p>
+
 ---
 
 
@@ -60,6 +69,7 @@ refused silently without them.
   runs at 9:00, 12:00, 15:00, 18:00 and 21:00. Each run reads ATLAS, your Google Calendar, and that day's output
   of your existing **Daily Briefing** routine, then gives a verdict (on track / mixed / off track) with minutes and
   next steps. The verdict is saved into ATLAS's Agent panel and dashboard.
+- Each check-in closes the loop. It checks off Things to-dos that the evidence clearly shows finished, and notes partial progress. It adds `Did ·` blocks to Google Calendar for what you actually did, plus a `Next ·` block with a reminder. It emails you the verdict (to the address in Settings → Claude, sent through Mail) and shows it on the Today screen alongside today's to-dos. It also sends a push notification when Remote Control is connected.
 - Automatic in-app analysis of each 3-hour window is off by default, to avoid spending your plan twice.
   **Analyze Now** still works.
 

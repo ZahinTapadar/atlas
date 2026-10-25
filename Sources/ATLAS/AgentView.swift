@@ -12,7 +12,6 @@ struct AgentView: View {
             windowList.frame(minWidth: 240, idealWidth: 270, maxWidth: 340)
             ScrollView { detail.padding(18) }.frame(minWidth: 520)
         }
-        .navigationTitle("Agent")
         .sheet(item: $payload) { PayloadSheet(item: $0) }
         .sheet(item: $editingAction) { a in ActionEditor(action: a) { model.approve(a, edited: $0) } }
         .onAppear {
