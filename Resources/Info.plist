@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>com.atlas.tracker</string>
+    <key>CFBundleName</key><string>ATLAS</string>
+    <key>CFBundleDisplayName</key><string>ATLAS</string>
+    <key>CFBundleExecutable</key><string>ATLAS</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>ATLAS reads your calendar to avoid scheduling conflicts and, only if you allow it, adds focus blocks it proposes.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>ATLAS can add reminders for unfinished tasks when you approve them.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>ATLAS asks Safari for the current tab's address and title (only if you enable Safari tracking) to classify browsing time.</string>
+</dict>
+</plist>

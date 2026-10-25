@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "ATLAS Activity Bridge",
+  "version": "1.0.0",
+  "description": "Reports the active tab's domain and title to the ATLAS app on this Mac. Nothing leaves your computer.",
+  "permissions": ["tabs", "nativeMessaging", "idle"],
+  "background": { "service_worker": "background.js" },
+  "incognito": "spanning",
+  "minimum_chrome_version": "116"
+}

@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "ATLAS Activity Bridge",
+  "version": "1.0.0",
+  "description": "Reports the active tab's domain and title to the ATLAS app on this Mac. Nothing leaves your computer.",
+  "permissions": ["tabs", "nativeMessaging", "idle"],
+  "background": { "scripts": ["background.js"] },
+  "browser_specific_settings": { "gecko": { "id": "atlas-bridge@atlas.local", "strict_min_version": "115.0" } }
+}

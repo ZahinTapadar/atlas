@@ -1,0 +1,11 @@
+.build/
+build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+DerivedData/
+.DS_Store
+# Never commit secrets or local databases
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
