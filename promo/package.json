@@ -5,6 +5,7 @@
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render Promo out/atlas-promo-silent.mp4 --codec h264 --crf 18",
+    "film": "remotion render Film out/atlas-film.mp4 --codec h264 --crf 17 --audio-codec aac",
     "poster": "remotion still Promo out/poster.jpg --frame 360 --image-format jpeg --jpeg-quality 88"
   },
   "dependencies": {

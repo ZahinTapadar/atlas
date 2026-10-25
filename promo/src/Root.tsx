@@ -2,6 +2,7 @@ import React from 'react';
 import { Composition, Series } from 'remotion';
 import { FPS } from './theme';
 import { Hook, Intro, Loop, Outro, Private, Ribbon, Screens, Today, Verdicts } from './scenes';
+import { Film, filmLength } from './light/Film';
 
 const scenes: [React.FC, number][] = [
   [Intro, 90],
@@ -27,4 +28,9 @@ const Promo: React.FC = () => (
   </Series>
 );
 
-export const Root: React.FC = () => <Composition id="Promo" component={Promo} durationInFrames={total} fps={FPS} width={1920} height={1080} />;
+export const Root: React.FC = () => (
+  <>
+    <Composition id="Promo" component={Promo} durationInFrames={total} fps={FPS} width={1920} height={1080} />
+    <Composition id="Film" component={Film} durationInFrames={filmLength} fps={FPS} width={1920} height={1080} defaultProps={{ music: true }} />
+  </>
+);
